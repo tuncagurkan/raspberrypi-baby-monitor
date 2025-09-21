@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🍼 Baby Monitor - Canlı İzleme</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .main-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 20px;
+            align-items: start;
+        }
+        
+        .video-section {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        
+        .video-container {
+            position: relative;
+            background: #000;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        
+        .video-stream {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+        
+        .video-overlay {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 0.9em;
+        }
+        
+        .status-panel {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        
+        .status-panel h2 {
+            color: #667eea;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        
+        .status-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            margin-bottom: 10px;
+            background: #f8f9ff;
+            border-radius: 10px;
+            border-left: 4px solid #667eea;
+        }
+        
+        .status-value {
+            font-weight: bold;
+            padding: 5px 10px;
+            border-radius: 15px;
+        }
+        
+        .status-normal { background: #d4edda; color: #155724; }
+        .status-warning { background: #fff3cd; color: #856404; }
+        .status-alert { background: #f8d7da; color: #721c24; }
+        
+        .controls {
+            margin-top: 20px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+        
+        button {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 8px;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+        
+        .connection-status {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 10px 15px;
+            border-radius: 20px;
+            color: white;
+            font-weight: bold;
+            z-index: 1000;
+        }
+        
+        .connected { background: #28a745; }
+        .disconnected { background: #dc3545; }
+        
+        @media (max-width: 768px) {
+            .main-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .container {
+                padding: 10px;
+            }
+            
+            .header h1 {
+                font-size: 2em;
+            }
+        }
+        
+        .pulse {
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🍼 Baby Monitor</h1>
+            <p>Canlı İzleme Sistemi</p>
+        </div>
+        
+        <div class="connection-status connected" id="connectionStatus">
+            🟢 Bağlı
+        </div>
+        
+        <div class="main-grid">
+            <div class="video-section">
+                <div class="video-container">
+                    <img src="/video_feed" class="video-stream" alt="Canlı Video" id="videoStream">
+                    <div class="video-overlay" id="videoOverlay">
+                        Canlı Yayın
+                    </div>
+                </div>
+                
+                <div class="controls">
+                    <button onclick="refreshStream()">🔄 Yenile</button>
+                    <button onclick="toggleFullscreen()">🖼️ Tam Ekran</button>
+                </div>
+            </div>
+            
+            <div class="status-panel">
+                <h2>📊 Durum Bilgileri</h2>
+                
+                <div class="status-item">
+                    <span>🎥 Kamera:</span>
+                    <span class="status-value status-normal" id="cameraStatus">Aktif</span>
+                </div>
+                
+                <div class="status-item">
+                    <span>📊 FPS:</span>
+                    <span class="status-value status-normal" id="fpsStatus">-- fps</span>
+                </div>
+                
+                <div class="status-item">
+                    <span>👥 İzleyici:</span>
+                    <span class="status-value" id="clientCount">--</span>
+                </div>
+                
+                <div class="status-item">
+                    <span>⏰ Son Güncelleme:</span>
+                    <span class="status-value" id="lastUpdate">--:--:--</span>
+                </div>
+                
+                <!-- İleride kullanılabilir (şimdilik comment)
+                <div class="status-item">
+                    <span>🏃 Hareket:</span>
+                    <span class="status-value status-normal" id="motionStatus">Normal</span>
+                </div>
+                
+                <div class="status-item">
+                    <span>🌡️ Sıcaklık:</span>
+                    <span class="status-value" id="temperature">--°C</span>
+                </div>
+                
+                <div class="status-item">
+                    <span>💧 Nem:</span>
+                    <span class="status-value" id="humidity">--%</span>
+                </div>
+                
+                <div class="status-item">
+                    <span>🔊 Ses:</span>
+                    <span class="status-value" id="soundLevel">-- dB</span>
+                </div>
+                -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Socket.IO bağlantısı
+        const socket = io();
+        let isConnected = false;
+        
+        // Bağlantı durumu
+        socket.on('connect', function() {
+            isConnected = true;
+            updateConnectionStatus(true);
+            console.log('✅ Sunucuya bağlandı');
+        });
+        
+        socket.on('disconnect', function() {
+            isConnected = false;
+            updateConnectionStatus(false);
+            console.log('❌ Sunucudan ayrıldı');
+        });
+        
+        // Durum güncellemeleri
+        socket.on('status_update', function(data) {
+            updateStatus(data);
+        });
+        
+        function updateConnectionStatus(connected) {
+            const statusEl = document.getElementById('connectionStatus');
+            if (connected) {
+                statusEl.className = 'connection-status connected';
+                statusEl.innerHTML = '🟢 Bağlı';
+            } else {
+                statusEl.className = 'connection-status disconnected';
+                statusEl.innerHTML = '🔴 Bağlantı Yok';
+            }
+        }
+        
+        function updateStatus(data) {
+            // FPS bilgisi
+            if (data.camera_fps !== undefined) {
+                document.getElementById('fpsStatus').textContent = data.camera_fps + ' fps';
+            }
+            
+            // İleride hareket tespiti eklenebilir
+            // const motionEl = document.getElementById('motionStatus');
+            // if (data.motion_detected) {
+            //     motionEl.textContent = 'Hareket Var!';
+            //     motionEl.className = 'status-value status-alert pulse';
+            // } else {
+            //     motionEl.textContent = 'Normal';
+            //     motionEl.className = 'status-value status-normal';
+            // }
+            
+            // İleride sıcaklık eklenebilir
+            // const tempEl = document.getElementById('temperature');
+            // if (data.temperature) {
+            //     tempEl.textContent = data.temperature + '°C';
+            //     if (data.temperature < 18 || data.temperature > 26) {
+            //         tempEl.className = 'status-value status-warning';
+            //     } else {
+            //         tempEl.className = 'status-value status-normal';
+            //     }
+            // }
+            
+            // İleride nem eklenebilir
+            // const humidityEl = document.getElementById('humidity');
+            // if (data.humidity) {
+            //     humidityEl.textContent = data.humidity + '%';
+            //     if (data.humidity > 70) {
+            //         humidityEl.className = 'status-value status-warning';
+            //     } else {
+            //         humidityEl.className = 'status-value status-normal';
+            //     }
+            // }
+            
+            // İleride ses seviyesi eklenebilir
+            // const soundEl = document.getElementById('soundLevel');
+            // if (data.sound_level !== undefined) {
+            //     soundEl.textContent = data.sound_level + ' dB';
+            //     if (data.sound_level > 60) {
+            //         soundEl.className = 'status-value status-alert';
+            //     } else {
+            //         soundEl.className = 'status-value status-normal';
+            //     }
+            // }
+            
+            // Son güncelleme zamanı
+            document.getElementById('lastUpdate').textContent = data.timestamp || '--:--:--';
+        }
+        
+        // İstemci sayısı güncellemesi
+        socket.on('status', function(data) {
+            if (data.connected_clients !== undefined) {
+                document.getElementById('clientCount').textContent = data.connected_clients;
+            }
+        });
+        
+        function refreshStream() {
+            const videoEl = document.getElementById('videoStream');
+            const currentSrc = videoEl.src;
+            videoEl.src = '';
+            setTimeout(() => {
+                videoEl.src = currentSrc + '?t=' + new Date().getTime();
+            }, 100);
+        }
+        
+        function toggleFullscreen() {
+            const videoEl = document.getElementById('videoStream');
+            if (videoEl.requestFullscreen) {
+                videoEl.requestFullscreen();
+            } else if (videoEl.webkitRequestFullscreen) {
+                videoEl.webkitRequestFullscreen();
+            } else if (videoEl.msRequestFullscreen) {
+                videoEl.msRequestFullscreen();
+            }
+        }
+        
+        // Sayfa yüklendiğinde durum bilgilerini al
+        window.addEventListener('load', function() {
+            socket.emit('request_status');
+        });
+        
+        // Video stream hata durumu
+        document.getElementById('videoStream').onerror = function() {
+            console.log('Video stream hatası - yeniden bağlanıyor...');
+            setTimeout(refreshStream, 2000);
+        };
+    </script>
+</body>
+</html>
