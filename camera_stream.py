@@ -27,6 +27,7 @@ class CameraStream:
     
     def initialize_camera(self):
         """Kamerayı başlat"""
+        print("🍼 Initializing camera")
         try:
             # Raspberry Pi Camera Module için
             self.camera = cv2.VideoCapture(0)
@@ -47,6 +48,7 @@ class CameraStream:
             self.camera = None
     
     def start_streaming(self):
+        print("🍼 Starting camera stream")
         """Streaming thread'ini başlat"""
         if self.camera:
             self.is_streaming = True
@@ -150,6 +152,7 @@ class CameraStream:
             time.sleep(1/30)  # 30 FPS max
     
     def update_settings(self, settings):
+        print("🍼 Camera settings update requested")
         """Kamera ayarlarını güncelle"""
         if 'brightness' in settings and self.camera:
             self.camera.set(cv2.CAP_PROP_BRIGHTNESS, settings['brightness'])
@@ -157,14 +160,17 @@ class CameraStream:
             self.camera.set(cv2.CAP_PROP_CONTRAST, settings['contrast'])
     
     def is_active(self):
+        print("🍼 Checking if camera is active")
         """Kamera aktif mi?"""
         return self.camera is not None and self.is_streaming
     
     def get_fps(self):
+        print("🍼 Getting current FPS")
         """Mevcut FPS değerini al"""
         return self.fps
     
     def stop(self):
+        print("🍼 Stopping camera stream")
         """Streaming'i durdur"""
         self.is_streaming = False
         if self.camera:

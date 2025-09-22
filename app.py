@@ -11,17 +11,21 @@ from config import Config
 
 class BabyMonitorApp:
     def __init__(self):
+        print("🍼 Baby Monitor starting")
         self.app = Flask(__name__)
         self.app.config['SECRET_KEY'] = 'baby_monitor_secret'
         self.socketio = SocketIO(self.app, cors_allowed_origins="*")
         
+        print("🍼 before config")
         self.config = Config()
         self.camera = CameraStream(self.config)
         
+        print("🍼 before setups")
         self.connected_clients = 0
         self.setup_routes()
         self.setup_socketio()
         self.start_background_tasks()
+        print("🍼 setup done")
     
     def setup_routes(self):
         @self.app.route('/')
@@ -30,6 +34,7 @@ class BabyMonitorApp:
         
         @self.app.route('/video_feed')
         def video_feed():
+            print("Video feed requested")
             return Response(
                 self.camera.generate_frames(),
                 mimetype='multipart/x-mixed-replace; boundary=frame'
@@ -37,6 +42,7 @@ class BabyMonitorApp:
         
         @self.app.route('/api/status')
         def get_status():
+            print("Status requested")
             return jsonify({
                 'camera_active': self.camera.is_active(),
                 'connected_clients': self.connected_clients,
@@ -46,6 +52,7 @@ class BabyMonitorApp:
         
         @self.app.route('/api/camera/settings', methods=['POST'])
         def update_camera_settings():
+            print("Camera settings update requested")
             data = request.get_json()
             self.camera.update_settings(data)
             return jsonify({'status': 'success'})
@@ -88,10 +95,10 @@ class BabyMonitorApp:
     
     def run(self):
         print("🍼 Baby Monitor başlatılıyor...")
-        print(f"Web arayüzü: http://0.0.0.0:{self.config.WEB_PORT}")
+        print(f"Web arayüzü: http://localhost:{self.config.WEB_PORT}")
         self.socketio.run(
             self.app, 
-            host='0.0.0.0', 
+            host='localhost', 
             port=self.config.WEB_PORT,
             debug=False,
             allow_unsafe_werkzeug=True
