@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🍼 WebRTC Baby Monitor Test</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
+</head>
+<body style="font-family: Arial; background: #f0f0f0; margin: 0; padding: 20px;">
+    <div style="max-width: 800px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px;">
+        <h1>🍼 WebRTC Baby Monitor Test</h1>
+        
+        <div style="margin: 20px 0;">
+            <h3>Durum:</h3>
+            <div id="status" style="padding: 10px; background: #f8f9fa; border-radius: 5px;">
+                Bağlantı bekleniyor...
+            </div>
+        </div>
+        
+        <div style="margin: 20px 0;">
+            <video id="localVideo" width="300" height="200" autoplay muted style="border: 2px solid #ccc; border-radius: 5px; margin-right: 20px;"></video>
+            <video id="remoteVideo" width="300" height="200" autoplay style="border: 2px solid #ccc; border-radius: 5px;"></video>
+        </div>
+        
+        <div style="margin: 20px 0;">
+            <button onclick="startTest()" style="padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; margin-right: 10px;">
+                📹 Kamera Test
+            </button>
+            <button onclick="startConnection()" style="padding: 10px 20px; background: #28a745; color: white; border: none; border-radius: 5px; cursor: pointer;">
+                🔗 WebRTC Bağlan
+            </button>
+        </div>
+        
+        <div id="logs" style="margin-top: 20px; padding: 10px; background: #f8f9fa; border-radius: 5px; font-family: monospace; font-size: 12px; max-height: 200px; overflow-y: scroll;">
+            <strong>Debug Logları:</strong><br>
+        </div>
+    </div>
+
+    <script>
+        const socket = io();
+        let localStream;
+        let peerConnection;
+        
+        const config = {
+            iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' },
+                { urls: 'stun:stun1.l.google.com:19302' }
+            ]
+        };
+        
+        function log(message) {
+            const logs = document.getElementById('logs');
+            const time = new Date().toLocaleTimeString();
+            logs.innerHTML += `[${time}] ${message}<br>`;
+            logs.scrollTop = logs.scrollHeight;
+            console.log(message);
+        }
+        
+        function updateStatus(message) {
+            document.getElementById('status').innerHTML = message;
+            log("Status: " + message);
+        }
+        
+        // Socket events
+        socket.on('connect', function() {
+            updateStatus('✅ Sunucuya bağlandı');
+        });
+        
+        socket.on('disconnect', function() {
+            updateStatus('❌ Sunucu bağlantısı kesildi');
+        });
+        
+        socket.on('offer', handleOffer);
+        socket.on('answer', handleAnswer);
+        socket.on('ice_candidate', handleIceCandidate);
+        
+        async function startTest() {
+            try {
+                log("Kamera erişimi isteniyor...");
+                
+                localStream = await navigator.mediaDevices.getUserMedia({
+                    video: { width: 640, height: 480 },
+                    audio: true
+                });
+                
+                document.getElementById('localVideo').srcObject = localStream;
+                updateStatus('✅ Kamera çalışıyor');
+                log("Kamera başarıyla başlatıldı");
+                
+            } catch (error) {
+                updateStatus('❌ Kamera hatası: ' + error.message);
+                log("Kamera hatası: " + error.message);
+            }
+        }
+        
+        async function startConnection() {
+            if (!localStream) {
+                alert('Önce kamera testini yapın!');
+                return;
+            }
+            
+            try {
+                log("WebRTC bağlantısı başlatılıyor...");
+                
+                peerConnection = new RTCPeerConnection(config);
+                
+                // Local stream'i ekle
+                localStream.getTracks().forEach(track => {
+                    peerConnection.addTrack(track, localStream);
+                    log("Track eklendi: " + track.kind);
+                });
+                
+                // Remote stream handler
+                peerConnection.ontrack = function(event) {
+                    log("Remote track alındı");
+                    document.getElementById('remoteVideo').srcObject = event.streams[0];
+                    updateStatus('✅ Video akışı başladı');
+                };
+                
+                // ICE candidate handler
+                peerConnection.onicecandidate = function(event) {
+                    if (event.candidate) {
+                        log("ICE candidate gönderiliyor");
+                        socket.emit('ice_candidate', event.candidate);
+                    }
+                };
+                
+                // Connection state handler
+                peerConnection.onconnectionstatechange = function() {
+                    log("Connection state: " + peerConnection.connectionState);
+                    updateStatus('Bağlantı durumu: ' + peerConnection.connectionState);
+                };
+                
+                // Offer oluştur ve gönder
+                const offer = await peerConnection.createOffer();
+                await peerConnection.setLocalDescription(offer);
+                socket.emit('offer', offer);
+                
+                log("Offer gönderildi");
+                updateStatus('🔄 Bağlantı teklifi gönderildi');
+                
+            } catch (error) {
+                updateStatus('❌ WebRTC hatası: ' + error.message);
+                log("WebRTC hatası: " + error.message);
+            }
+        }
+        
+        async function handleOffer(offer) {
+            try {
+                log("Offer alındı, cevap hazırlanıyor...");
+                
+                if (!peerConnection) {
+                    peerConnection = new RTCPeerConnection(config);
+                    
+                    peerConnection.ontrack = function(event) {
+                        log("Remote track alındı");
+                        document.getElementById('remoteVideo').srcObject = event.streams[0];
+                        updateStatus('✅ Video akışı başladı');
+                    };
+                    
+                    peerConnection.onicecandidate = function(event) {
+                        if (event.candidate) {
+                            socket.emit('ice_candidate', event.candidate);
+                        }
+                    };
+                }
+                
+                await peerConnection.setRemoteDescription(offer);
+                const answer = await peerConnection.createAnswer();
+                await peerConnection.setLocalDescription(answer);
+                socket.emit('answer', answer);
+                
+                log("Answer gönderildi");
+                
+            } catch (error) {
+                log("Offer handle hatası: " + error.message);
+            }
+        }
+        
+        async function handleAnswer(answer) {
+            try {
+                log("Answer alındı");
+                await peerConnection.setRemoteDescription(answer);
+                updateStatus('🔗 WebRTC bağlantısı kuruldu!');
+            } catch (error) {
+                log("Answer handle hatası: " + error.message);
+            }
+        }
+        
+        async function handleIceCandidate(candidate) {
+            try {
+                await peerConnection.addIceCandidate(candidate);
+                log("ICE candidate eklendi");
+            } catch (error) {
+                log("ICE candidate hatası: " + error.message);
+            }
+        }
+        
+        window.addEventListener('load', function() {
+            log("Sayfa yüklendi, hazır");
+            updateStatus('Sayfa hazır - kamera testini başlatın');
+        });
+    </script>
+</body>
+</html>
