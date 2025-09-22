@@ -95,10 +95,10 @@ class BabyMonitorApp:
     
     def run(self):
         print("🍼 Baby Monitor başlatılıyor...")
-        print(f"Web arayüzü: http://127.0.0.1:{self.config.WEB_PORT}")
+        print(f"Web arayüzü: http://0.0.0.0:{self.config.WEB_PORT}")
         self.socketio.run(
             self.app, 
-            host='127.0.0.1', 
+            host='0.0.0.0', 
             port=self.config.WEB_PORT,
             debug=False,
             allow_unsafe_werkzeug=True
