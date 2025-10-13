@@ -1,7 +1,12 @@
 class Config:
     # Web Server
     WEB_PORT = 5000
-    
+
+    # API Server Configuration
+    API_BASE_URL = 'http://localhost:8080'
+    DEVICE_ID = 'xxx'
+    DEVICE_AUTH_KEY = 'yyy'
+
     # Kamera ayarları
     CAMERA_WIDTH = 640
     CAMERA_HEIGHT = 480

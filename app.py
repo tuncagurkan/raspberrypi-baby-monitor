@@ -8,6 +8,7 @@ from datetime import datetime
 
 from camera_stream import CameraStream
 from config import Config
+from ip_registration_service import IPRegistrationService
 
 class BabyMonitorApp:
     def __init__(self):
@@ -18,6 +19,12 @@ class BabyMonitorApp:
         
         print("🍼 before config")
         self.config = Config()
+
+        # Initialize IP registration
+        print("🍼 Initializing IP registration...")
+        self.ip_service = IPRegistrationService(self.config)
+        self.ip_service.initialize()
+
         self.camera = CameraStream(self.config)
         
         print("🍼 before setups")
