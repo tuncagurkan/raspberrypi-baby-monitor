@@ -1,3 +1,5 @@
+import pyaudio
+
 class Config:
     # Web Server
     WEB_PORT = 5000
@@ -11,6 +13,13 @@ class Config:
     CAMERA_WIDTH = 640
     CAMERA_HEIGHT = 480
     CAMERA_FPS = 25
+
+    # Audio settings
+    AUDIO_FORMAT = pyaudio.paInt16  # 16-bit audio
+    AUDIO_CHANNELS = 1  # Mono
+    AUDIO_RATE = 16000  # 16kHz sample rate (good for voice)
+    AUDIO_CHUNK = 1024  # Frames per buffer
+    AUDIO_DEVICE_INDEX = None  # None = default device
     
     # İleride kullanılabilir (şimdilik comment)
     # # Hareket tespiti

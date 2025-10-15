@@ -7,6 +7,7 @@ import json
 from datetime import datetime
 
 from camera_stream import CameraStream
+from audio_stream import AudioStream
 from config import Config
 from ip_registration_service import IPRegistrationService
 
@@ -26,6 +27,7 @@ class BabyMonitorApp:
         self.ip_service.initialize()
 
         self.camera = CameraStream(self.config)
+        self.audio = AudioStream(self.config)
         
         print("🍼 before setups")
         self.connected_clients = 0
@@ -46,12 +48,21 @@ class BabyMonitorApp:
                 self.camera.generate_frames(),
                 mimetype='multipart/x-mixed-replace; boundary=frame'
             )
+
+        @self.app.route('/audio_feed')
+        def audio_feed():
+            print("Audio feed requested")
+            return Response(
+                self.audio.generate_audio(),
+                mimetype='audio/x-raw'
+            )
         
         @self.app.route('/api/status')
         def get_status():
             print("Status requested")
             return jsonify({
                 'camera_active': self.camera.is_active(),
+                'audio_active': self.audio.is_active(),
                 'connected_clients': self.connected_clients,
                 'camera_fps': self.camera.get_fps(),
                 'timestamp': datetime.now().isoformat()
@@ -97,6 +108,7 @@ class BabyMonitorApp:
     def get_current_status(self):
         return {
             'camera_fps': self.camera.get_fps(),
+            'audio_active': self.audio.is_active(),
             'timestamp': datetime.now().strftime('%H:%M:%S')
         }
     
