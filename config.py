@@ -6,8 +6,8 @@ class Config:
 
     # API Server Configuration
     API_BASE_URL = 'http://localhost:8080'
-    DEVICE_ID = 'xxx'
-    DEVICE_AUTH_KEY = 'yyy'
+    DEVICE_ID = 'baby-monitor-pi'
+    DEVICE_AUTH_KEY = 'e6a1d40a42f6dd017cdc7735176f65294ff7230a93d4e21597c7e5b0f26075ae'
 
     # Kamera ayarları
     CAMERA_WIDTH = 640
