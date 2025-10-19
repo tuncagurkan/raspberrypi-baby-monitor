@@ -46,8 +46,9 @@ class IPRegistrationService:
             )
             response.raise_for_status()
 
-            data = response.json()
-            self.access_token = data.get('token') or data.get('accessToken')
+            response_data = response.json()
+            data = response_data.get('data', {})
+            self.access_token = data.get('accessToken')
 
             if self.access_token:
                 logger.info(f"✓ Authentication successful")
