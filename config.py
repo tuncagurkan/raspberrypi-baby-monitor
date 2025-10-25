@@ -2,7 +2,7 @@ import pyaudio
 
 class Config:
     # Web Server
-    WEB_PORT = 5000
+    WEB_PORT = 8080
 
     # API Server Configuration
     API_BASE_URL = 'http://35.158.190.252:8000'
