@@ -141,32 +141,24 @@ class CameraStream:
             print(f"🔍 Hareket tespit edildi! (%{motion_percentage:.2f})")
     
     def _add_overlay_info(self, frame):
-        """Frame üzerine bilgi overlay'i ekle"""
-        overlay_frame = frame.copy()
-        
-        # Timestamp
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        cv2.putText(overlay_frame, timestamp, (10, 30), 
-                   cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
-        
-        # FPS bilgisi
-        cv2.putText(overlay_frame, f"FPS: {self.fps}", (10, 60),
-                   cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+        """Frame üzerine bilgi overlay'i ekle (minimal - performans)"""
+        # Frame kopyalama bile CPU yer - direkt üzerine yaz
 
-        # Hareket durumu ve bounding box'lar
+        # Sadece FPS (küçük font - performans)
+        cv2.putText(frame, f"FPS:{self.fps}", (5, 20),
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+
+        # Hareket durumu (sadece aktifse)
         if self.config.MOTION_DETECTION_ENABLED and self.motion_detected:
-            cv2.putText(overlay_frame, "HAREKET!", (10, 90),
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
+            # Basit "M" harfi (performans)
+            cv2.putText(frame, "M", (5, 40),
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
 
-            # Hareket tespit edilen bölgeleri kareye al
+            # Hareket bölgeleri (varsa)
             for (x, y, w, h) in self.motion_boxes:
-                # Yeşil dikdörtgen çiz
-                cv2.rectangle(overlay_frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
-                # Üstüne "HAREKET" etiketi
-                cv2.putText(overlay_frame, "HAREKET", (x, y - 10),
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-        
-        return overlay_frame
+                cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 1)
+
+        return frame
     
     def _fps_counter(self):
         """FPS hesaplayıcısı"""
@@ -179,30 +171,27 @@ class CameraStream:
         """Flask streaming için frame generator"""
         while self.is_streaming:
             if self.current_frame is not None:
-                # JPEG encode
+                # JPEG encode (düşük kalite - performans)
                 ret, buffer = cv2.imencode('.jpg', self.current_frame,
-                                         [cv2.IMWRITE_JPEG_QUALITY, 85])
+                                         [cv2.IMWRITE_JPEG_QUALITY, 60])  # 85 -> 60 (daha hızlı)
                 if ret:
                     frame_bytes = buffer.tobytes()
                     yield (b'--frame\r\n'
                            b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
-            time.sleep(1/30)  # 30 FPS max
+            time.sleep(0.01)  # Minimal delay
     
     def update_settings(self, settings):
-        print("🍼 Camera settings update requested")
         """Kamera ayarlarını güncelle"""
         if 'brightness' in settings and self.camera:
             self.camera.set(cv2.CAP_PROP_BRIGHTNESS, settings['brightness'])
         if 'contrast' in settings and self.camera:
             self.camera.set(cv2.CAP_PROP_CONTRAST, settings['contrast'])
-    
+
     def is_active(self):
-        print("🍼 Checking if camera is active")
         """Kamera aktif mi?"""
         return self.camera is not None and self.is_streaming
-    
+
     def get_fps(self):
-        print("🍼 Getting current FPS")
         """Mevcut FPS değerini al"""
         return self.fps
 
@@ -215,7 +204,6 @@ class CameraStream:
         return self.motion_detected if self.config.MOTION_DETECTION_ENABLED else False
     
     def stop(self):
-        print("🍼 Stopping camera stream")
         """Streaming'i durdur"""
         self.is_streaming = False
         if self.camera:
