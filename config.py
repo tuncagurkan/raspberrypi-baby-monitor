@@ -25,6 +25,11 @@ class Config:
     MOTION_THRESHOLD = 0.5  # %0.5 hareket threshold - El ve kafa hareketleri için hassas
     MOTION_DETECTION_ENABLED = True  # Hareket algılama AÇIK
     MOTION_CHECK_INTERVAL = 10  # Her 10 frame'de bir (çok daha az CPU)
+
+    # Gece görüşü
+    NIGHT_VISION_ENABLED = False  # Gece görüşü modu
+    NIGHT_VISION_BRIGHTNESS = 50  # Parlaklık artırımı (0-100)
+    NIGHT_VISION_CONTRAST = 30    # Kontrast artırımı (0-100)
     # 
     # # Sensör ayarları
     # DHT_PIN = 4  # DHT22 sensör pini
