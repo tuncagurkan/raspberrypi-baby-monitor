@@ -13,14 +13,16 @@ class CameraStream:
         self.is_streaming = False
         self.fps_counter = 0
         self.fps = 0
-        
-        # İleride kullanılabilir (şimdilik comment)
-        # self.motion_detected = False
-        # self.bg_subtractor = cv2.createBackgroundSubtractorMOG2(
-        #     detectShadows=True,
-        #     varThreshold=16,
-        #     history=500
-        # )
+
+        # Hareket algılama
+        self.motion_detected = False
+        self.motion_callback = None  # Hareket algılandığında çağrılacak callback
+        if self.config.MOTION_DETECTION_ENABLED:
+            self.bg_subtractor = cv2.createBackgroundSubtractorMOG2(
+                detectShadows=True,
+                varThreshold=16,
+                history=500
+            )
         
         self.initialize_camera()
         self.start_streaming()
@@ -72,41 +74,44 @@ class CameraStream:
     
     def _process_frame(self, frame):
         """Frame işleme"""
-        # İleride hareket tespiti eklenebilir
-        # self._detect_motion(frame)
-        
+        # Hareket tespiti
+        if self.config.MOTION_DETECTION_ENABLED:
+            self._detect_motion(frame)
+
         # Frame üzerinde bilgileri göster
         frame_with_info = self._add_overlay_info(frame)
-        
+
         return frame_with_info
     
-    # Hareket tespiti (şimdilik comment)
-    # def _detect_motion(self, frame):
-    #     """Hareket tespiti algoritması"""
-    #     # Gri tonlama
-    #     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    #     
-    #     # Gaussian blur (gürültü azaltma)
-    #     gray = cv2.GaussianBlur(gray, (21, 21), 0)
-    #     
-    #     # Background subtraction
-    #     fg_mask = self.bg_subtractor.apply(gray)
-    #     
-    #     # Morfolojik operasyonlar (gürültü temizleme)
-    #     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
-    #     fg_mask = cv2.morphologyEx(fg_mask, cv2.MORPH_CLOSE, kernel)
-    #     fg_mask = cv2.morphologyEx(fg_mask, cv2.MORPH_OPEN, kernel)
-    #     
-    #     # Hareket alanını hesapla
-    #     motion_pixels = cv2.countNonZero(fg_mask)
-    #     total_pixels = frame.shape[0] * frame.shape[1]
-    #     motion_percentage = (motion_pixels / total_pixels) * 100
-    #     
-    #     # Hareket threshold'u
-    #     self.motion_detected = motion_percentage > self.config.MOTION_THRESHOLD
-    #     
-    #     if self.motion_detected:
-    #         print(f"🔍 Hareket tespit edildi! (%{motion_percentage:.2f})")
+    def _detect_motion(self, frame):
+        """Hareket tespiti algoritması"""
+        # Gri tonlama
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
+        # Gaussian blur (gürültü azaltma)
+        gray = cv2.GaussianBlur(gray, (21, 21), 0)
+
+        # Background subtraction
+        fg_mask = self.bg_subtractor.apply(gray)
+
+        # Morfolojik operasyonlar (gürültü temizleme)
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+        fg_mask = cv2.morphologyEx(fg_mask, cv2.MORPH_CLOSE, kernel)
+        fg_mask = cv2.morphologyEx(fg_mask, cv2.MORPH_OPEN, kernel)
+
+        # Hareket alanını hesapla
+        motion_pixels = cv2.countNonZero(fg_mask)
+        total_pixels = frame.shape[0] * frame.shape[1]
+        motion_percentage = (motion_pixels / total_pixels) * 100
+
+        # Hareket threshold'u
+        was_detected = self.motion_detected
+        self.motion_detected = motion_percentage > self.config.MOTION_THRESHOLD
+
+        # Yeni hareket algılandıysa callback'i çağır
+        if self.motion_detected and not was_detected and self.motion_callback:
+            self.motion_callback(motion_percentage)
+            print(f"🔍 Hareket tespit edildi! (%{motion_percentage:.2f})")
     
     def _add_overlay_info(self, frame):
         """Frame üzerine bilgi overlay'i ekle"""
@@ -120,14 +125,14 @@ class CameraStream:
         # FPS bilgisi
         cv2.putText(overlay_frame, f"FPS: {self.fps}", (10, 60),
                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
-        
-        # İleride hareket durumu eklenebilir
-        # if self.motion_detected:
-        #     cv2.putText(overlay_frame, "HAREKET!", (10, 90),
-        #                cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
-        #     # Kırmızı çerçeve
-        #     cv2.rectangle(overlay_frame, (5, 5), 
-        #                  (frame.shape[1]-5, frame.shape[0]-5), (0, 0, 255), 3)
+
+        # Hareket durumu
+        if self.config.MOTION_DETECTION_ENABLED and self.motion_detected:
+            cv2.putText(overlay_frame, "HAREKET!", (10, 90),
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
+            # Kırmızı çerçeve
+            cv2.rectangle(overlay_frame, (5, 5),
+                         (overlay_frame.shape[1]-5, overlay_frame.shape[0]-5), (0, 0, 255), 3)
         
         return overlay_frame
     
@@ -168,6 +173,14 @@ class CameraStream:
         print("🍼 Getting current FPS")
         """Mevcut FPS değerini al"""
         return self.fps
+
+    def set_motion_callback(self, callback):
+        """Hareket algılandığında çağrılacak callback fonksiyonunu ayarla"""
+        self.motion_callback = callback
+
+    def is_motion_detected(self):
+        """Hareket algılandı mı?"""
+        return self.motion_detected if self.config.MOTION_DETECTION_ENABLED else False
     
     def stop(self):
         print("🍼 Stopping camera stream")

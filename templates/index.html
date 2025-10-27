@@ -158,11 +158,55 @@
         .pulse {
             animation: pulse 2s infinite;
         }
-        
+
         @keyframes pulse {
             0% { transform: scale(1); }
             50% { transform: scale(1.05); }
             100% { transform: scale(1); }
+        }
+
+        /* Hareket bildirimi */
+        .motion-alert {
+            position: fixed;
+            top: 80px;
+            right: 20px;
+            background: linear-gradient(135deg, #ff6b6b, #ee5a6f);
+            color: white;
+            padding: 20px 25px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(255, 107, 107, 0.4);
+            z-index: 1001;
+            font-weight: bold;
+            font-size: 1.1em;
+            display: none;
+            animation: slideIn 0.5s ease;
+        }
+
+        .motion-alert.show {
+            display: block;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        .motion-alert-icon {
+            font-size: 2em;
+            display: inline-block;
+            animation: shake 0.5s infinite;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
         }
     </style>
 </head>
@@ -176,7 +220,12 @@
         <div class="connection-status connected" id="connectionStatus">
             🟢 Bağlı
         </div>
-        
+
+        <div class="motion-alert" id="motionAlert">
+            <span class="motion-alert-icon">🚨</span>
+            <span id="motionAlertText">Hareket Algılandı!</span>
+        </div>
+
         <div class="main-grid">
             <div class="video-section">
                 <div class="video-container">
@@ -214,12 +263,13 @@
                     <span>⏰ Son Güncelleme:</span>
                     <span class="status-value" id="lastUpdate">--:--:--</span>
                 </div>
-                
-                <!-- İleride kullanılabilir (şimdilik comment)
+
                 <div class="status-item">
                     <span>🏃 Hareket:</span>
                     <span class="status-value status-normal" id="motionStatus">Normal</span>
                 </div>
+
+                <!-- İleride kullanılabilir (şimdilik comment)
                 
                 <div class="status-item">
                     <span>🌡️ Sıcaklık:</span>
@@ -262,6 +312,11 @@
         socket.on('status_update', function(data) {
             updateStatus(data);
         });
+
+        // Hareket bildirimi
+        socket.on('motion_alert', function(data) {
+            showMotionAlert(data);
+        });
         
         function updateConnectionStatus(connected) {
             const statusEl = document.getElementById('connectionStatus');
@@ -279,16 +334,16 @@
             if (data.camera_fps !== undefined) {
                 document.getElementById('fpsStatus').textContent = data.camera_fps + ' fps';
             }
-            
-            // İleride hareket tespiti eklenebilir
-            // const motionEl = document.getElementById('motionStatus');
-            // if (data.motion_detected) {
-            //     motionEl.textContent = 'Hareket Var!';
-            //     motionEl.className = 'status-value status-alert pulse';
-            // } else {
-            //     motionEl.textContent = 'Normal';
-            //     motionEl.className = 'status-value status-normal';
-            // }
+
+            // Hareket tespiti
+            const motionEl = document.getElementById('motionStatus');
+            if (data.motion_detected) {
+                motionEl.textContent = 'Hareket Var!';
+                motionEl.className = 'status-value status-alert pulse';
+            } else {
+                motionEl.textContent = 'Normal';
+                motionEl.className = 'status-value status-normal';
+            }
             
             // İleride sıcaklık eklenebilir
             // const tempEl = document.getElementById('temperature');
@@ -333,6 +388,52 @@
                 document.getElementById('clientCount').textContent = data.connected_clients;
             }
         });
+
+        // Hareket bildirimi göster
+        let motionAlertTimeout;
+        function showMotionAlert(data) {
+            const alertEl = document.getElementById('motionAlert');
+            const textEl = document.getElementById('motionAlertText');
+
+            // Bildirim metnini güncelle
+            textEl.textContent = `Hareket Algılandı! (${data.motion_percentage}%)`;
+
+            // Bildirimi göster
+            alertEl.classList.add('show');
+
+            // Ses çal (tarayıcı izin verirse)
+            try {
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+
+                oscillator.frequency.value = 800;
+                oscillator.type = 'sine';
+
+                gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+
+                oscillator.start(audioContext.currentTime);
+                oscillator.stop(audioContext.currentTime + 0.5);
+            } catch (e) {
+                console.log('Ses çalınamadı:', e);
+            }
+
+            // Önceki timeout'u temizle
+            if (motionAlertTimeout) {
+                clearTimeout(motionAlertTimeout);
+            }
+
+            // 5 saniye sonra gizle
+            motionAlertTimeout = setTimeout(function() {
+                alertEl.classList.remove('show');
+            }, 5000);
+
+            console.log('🚨 Hareket bildirimi:', data);
+        }
         
         function refreshStream() {
             const videoEl = document.getElementById('videoStream');
