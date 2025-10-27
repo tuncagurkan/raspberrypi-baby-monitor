@@ -94,6 +94,23 @@ class BabyMonitorApp:
             return jsonify({
                 'motion_enabled': self.config.MOTION_DETECTION_ENABLED
             })
+
+        @self.app.route('/api/nightvision/toggle', methods=['POST'])
+        def toggle_night_vision():
+            """Gece görüşünü aç/kapa"""
+            current_state = self.config.NIGHT_VISION_ENABLED
+            self.config.NIGHT_VISION_ENABLED = not current_state
+            return jsonify({
+                'status': 'success',
+                'night_vision_enabled': self.config.NIGHT_VISION_ENABLED
+            })
+
+        @self.app.route('/api/nightvision/status', methods=['GET'])
+        def get_night_vision_status():
+            """Gece görüşü durumunu al"""
+            return jsonify({
+                'night_vision_enabled': self.config.NIGHT_VISION_ENABLED
+            })
     
     def setup_socketio(self):
         @self.socketio.on('connect')
@@ -131,6 +148,7 @@ class BabyMonitorApp:
             'audio_active': self.audio.is_active(),
             'motion_detected': self.camera.is_motion_detected(),
             'motion_enabled': self.config.MOTION_DETECTION_ENABLED,
+            'night_vision_enabled': self.config.NIGHT_VISION_ENABLED,
             'timestamp': datetime.now().strftime('%H:%M:%S')
         }
 
