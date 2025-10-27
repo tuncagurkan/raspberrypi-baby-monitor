@@ -22,8 +22,9 @@ class Config:
     AUDIO_DEVICE_INDEX = None  # None = default device
 
     # Hareket tespiti
-    MOTION_THRESHOLD = 1.0  # %1 hareket threshold
+    MOTION_THRESHOLD = 0.5  # %0.5 hareket threshold - El ve kafa hareketleri için hassas
     MOTION_DETECTION_ENABLED = True  # Hareket algılama aktif/pasif
+    MOTION_CHECK_INTERVAL = 3  # Her kaç frame'de bir hareket kontrolü yap (performans için)
     # 
     # # Sensör ayarları
     # DHT_PIN = 4  # DHT22 sensör pini
