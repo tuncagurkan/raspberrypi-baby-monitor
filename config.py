@@ -10,9 +10,9 @@ class Config:
     DEVICE_AUTH_KEY = 'e6a1d40a42f6dd017cdc7735176f65294ff7230a93d4e21597c7e5b0f26075ae'
 
     # Kamera ayarları
-    CAMERA_WIDTH = 640
-    CAMERA_HEIGHT = 480
-    CAMERA_FPS = 25
+    CAMERA_WIDTH = 320  # Düşük çözünürlük (performans için)
+    CAMERA_HEIGHT = 240
+    CAMERA_FPS = 30
 
     # Audio settings
     AUDIO_FORMAT = pyaudio.paInt16  # 16-bit audio
@@ -23,8 +23,8 @@ class Config:
 
     # Hareket tespiti
     MOTION_THRESHOLD = 0.5  # %0.5 hareket threshold - El ve kafa hareketleri için hassas
-    MOTION_DETECTION_ENABLED = True  # Hareket algılama aktif/pasif
-    MOTION_CHECK_INTERVAL = 3  # Her kaç frame'de bir hareket kontrolü yap (performans için)
+    MOTION_DETECTION_ENABLED = False  # PERFORMANS İÇİN KAPALI - Gerekirse açabilirsiniz
+    MOTION_CHECK_INTERVAL = 10  # Her 10 frame'de bir (çok daha az CPU)
     # 
     # # Sensör ayarları
     # DHT_PIN = 4  # DHT22 sensör pini
