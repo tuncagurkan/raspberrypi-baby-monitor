@@ -149,21 +149,34 @@ class SoundPlayer:
                     break
 
                 # Play audio
-                self.stream.write(audio_data.tobytes())
+                if self.is_playing:
+                    self.stream.write(audio_data.tobytes())
 
-            self.stream.stop_stream()
-            self.stream.close()
-            self.stream = None
-            print("⏹️ Sound stopped")
+            # Temiz kapatma
+            if self.stream:
+                if self.stream.is_active():
+                    self.stream.stop_stream()
+                self.stream.close()
+                self.stream = None
+            print("⏹️ Sound loop ended")
 
         except Exception as e:
             print(f"❌ Playback error: {e}")
             self.is_playing = False
+            if self.stream:
+                try:
+                    self.stream.close()
+                except:
+                    pass
+                self.stream = None
 
     def play(self, sound_type):
         """Ses çalmaya başla"""
+        # Önceki sesi temizce durdur
         if self.is_playing:
+            print(f"Stopping previous sound...")
             self.stop()
+            time.sleep(0.5)  # ALSA'nın temizlenmesini bekle
 
         self.current_sound = sound_type
         self.is_playing = True
@@ -173,14 +186,24 @@ class SoundPlayer:
     def stop(self):
         """Sesi durdur"""
         self.is_playing = False
-        self.current_sound = None
+
+        # Thread'in bitmesini bekle
+        if self.play_thread and self.play_thread.is_alive():
+            self.play_thread.join(timeout=1.0)
+
+        # Stream'i temizle
         if self.stream:
             try:
-                self.stream.stop_stream()
+                if self.stream.is_active():
+                    self.stream.stop_stream()
                 self.stream.close()
-            except:
-                pass
-            self.stream = None
+            except Exception as e:
+                print(f"Stream close error: {e}")
+            finally:
+                self.stream = None
+
+        self.current_sound = None
+        print("⏹️ Sound stopped cleanly")
 
     def set_volume(self, volume):
         """Ses seviyesini ayarla (0.0 - 1.0)"""
