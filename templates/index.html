@@ -107,7 +107,7 @@
         .controls {
             margin-top: 20px;
             display: grid;
-            grid-template-columns: 1fr 1fr 1fr;
+            grid-template-columns: 1fr 1fr;
             gap: 10px;
         }
         
@@ -243,7 +243,10 @@
                 <div class="controls">
                     <button onclick="refreshStream()">🔄 Yenile</button>
                     <button onclick="toggleFullscreen()">🖼️ Tam Ekran</button>
+                </div>
+                <div class="controls">
                     <button onclick="toggleMotionDetection()" id="motionToggleBtn">🚨 Hareket Algılama</button>
+                    <button onclick="toggleNightVision()" id="nightVisionBtn">🌙 Gece Görüşü</button>
                 </div>
             </div>
             
@@ -354,6 +357,11 @@
             // Hareket algılama butonu durumu
             if (data.motion_enabled !== undefined) {
                 updateMotionButton(data.motion_enabled);
+            }
+
+            // Gece görüşü butonu durumu
+            if (data.night_vision_enabled !== undefined) {
+                updateNightVisionButton(data.night_vision_enabled);
             }
             
             // İleride sıcaklık eklenebilir
@@ -488,10 +496,40 @@
         function updateMotionButton(enabled) {
             const btn = document.getElementById('motionToggleBtn');
             if (enabled) {
-                btn.textContent = '🚨 Hareket Algılama: AÇIK';
+                btn.textContent = '🚨 Hareket: AÇIK';
                 btn.classList.remove('motion-off');
             } else {
-                btn.textContent = '🚫 Hareket Algılama: KAPALI';
+                btn.textContent = '🚫 Hareket: KAPALI';
+                btn.classList.add('motion-off');
+            }
+        }
+
+        // Gece görüşünü aç/kapa
+        function toggleNightVision() {
+            fetch('/api/nightvision/toggle', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    updateNightVisionButton(data.night_vision_enabled);
+                    console.log('Gece görüşü:', data.night_vision_enabled ? 'AÇIK' : 'KAPALI');
+                }
+            })
+            .catch(error => console.error('Hata:', error));
+        }
+
+        // Gece görüşü butonunu güncelle
+        function updateNightVisionButton(enabled) {
+            const btn = document.getElementById('nightVisionBtn');
+            if (enabled) {
+                btn.textContent = '🌙 Gece Görüşü: AÇIK';
+                btn.classList.remove('motion-off');
+            } else {
+                btn.textContent = '🌑 Gece Görüşü: KAPALI';
                 btn.classList.add('motion-off');
             }
         }
@@ -505,6 +543,13 @@
                 .then(response => response.json())
                 .then(data => {
                     updateMotionButton(data.motion_enabled);
+                });
+
+            // Gece görüşü durumunu al
+            fetch('/api/nightvision/status')
+                .then(response => response.json())
+                .then(data => {
+                    updateNightVisionButton(data.night_vision_enabled);
                 });
         });
         
