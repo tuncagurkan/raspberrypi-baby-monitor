@@ -20,10 +20,10 @@ class Config:
     AUDIO_RATE = 16000  # 16kHz sample rate (good for voice)
     AUDIO_CHUNK = 1024  # Frames per buffer
     AUDIO_DEVICE_INDEX = None  # None = default device
-    
-    # İleride kullanılabilir (şimdilik comment)
-    # # Hareket tespiti
-    # MOTION_THRESHOLD = 1.0  # %1 hareket threshold
+
+    # Hareket tespiti
+    MOTION_THRESHOLD = 1.0  # %1 hareket threshold
+    MOTION_DETECTION_ENABLED = True  # Hareket algılama aktif/pasif
     # 
     # # Sensör ayarları
     # DHT_PIN = 4  # DHT22 sensör pini
