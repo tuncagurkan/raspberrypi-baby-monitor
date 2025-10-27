@@ -71,6 +71,10 @@ class CameraStream:
     
     def _process_frame(self, frame):
         """Frame işleme"""
+        # Gece görüşü işleme
+        if self.config.NIGHT_VISION_ENABLED:
+            frame = self._apply_night_vision(frame)
+
         # Hareket tespiti (performans için her N frame'de bir)
         if self.config.MOTION_DETECTION_ENABLED:
             self.motion_frame_counter += 1
@@ -83,6 +87,31 @@ class CameraStream:
 
         return frame_with_info
     
+    def _apply_night_vision(self, frame):
+        """Gece görüşü efekti uygula (yazılımsal)"""
+        # Histogram eşitleme (CLAHE - Contrast Limited Adaptive Histogram Equalization)
+        # Gri tonlamaya çevir
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
+        # CLAHE uygula (performanslı)
+        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+        enhanced = clahe.apply(gray)
+
+        # Parlaklık ve kontrast ayarla
+        alpha = 1.0 + (self.config.NIGHT_VISION_CONTRAST / 100.0)  # Kontrast
+        beta = self.config.NIGHT_VISION_BRIGHTNESS  # Parlaklık
+        enhanced = cv2.convertScaleAbs(enhanced, alpha=alpha, beta=beta)
+
+        # Tekrar BGR'ye çevir (gece görüşü yeşil efekt için)
+        night_vision_frame = cv2.cvtColor(enhanced, cv2.COLOR_GRAY2BGR)
+
+        # Yeşil ton ekle (opsiyonel - klasik gece görüşü görünümü)
+        night_vision_frame[:, :, 0] = night_vision_frame[:, :, 0] * 0.3  # Mavi azalt
+        night_vision_frame[:, :, 2] = night_vision_frame[:, :, 2] * 0.3  # Kırmızı azalt
+        night_vision_frame[:, :, 1] = night_vision_frame[:, :, 1] * 1.2  # Yeşil artır
+
+        return night_vision_frame
+
     def _detect_motion(self, frame):
         """Hareket tespiti - ULTRA BASIT (frame difference only)"""
         # Çok küçük frame (performans)
