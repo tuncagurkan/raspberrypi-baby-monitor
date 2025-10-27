@@ -23,7 +23,7 @@ class Config:
 
     # Hareket tespiti
     MOTION_THRESHOLD = 0.5  # %0.5 hareket threshold - El ve kafa hareketleri için hassas
-    MOTION_DETECTION_ENABLED = False  # PERFORMANS İÇİN KAPALI - Gerekirse açabilirsiniz
+    MOTION_DETECTION_ENABLED = True  # Hareket algılama AÇIK
     MOTION_CHECK_INTERVAL = 10  # Her 10 frame'de bir (çok daha az CPU)
     # 
     # # Sensör ayarları
