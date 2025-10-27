@@ -8,6 +8,7 @@ from datetime import datetime
 
 from camera_stream import CameraStream
 from audio_stream import AudioStream
+from sound_player import SoundPlayer
 from config import Config
 from ip_registration_service import IPRegistrationService
 
@@ -28,9 +29,13 @@ class BabyMonitorApp:
 
         self.camera = CameraStream(self.config)
         self.audio = AudioStream(self.config)
+        self.sound_player = SoundPlayer(self.config)
 
         # Hareket algılama callback'i ayarla
         self.camera.set_motion_callback(self.on_motion_detected)
+
+        # Ses algılama callback'i ayarla
+        self.audio.set_sound_callback(self.on_sound_detected)
 
         print("🍼 before setups")
         self.connected_clients = 0
@@ -111,6 +116,43 @@ class BabyMonitorApp:
             return jsonify({
                 'night_vision_enabled': self.config.NIGHT_VISION_ENABLED
             })
+
+        @self.app.route('/api/sound/play', methods=['POST'])
+        def play_sound():
+            """Sakinleştirici ses çal (Raspberry Pi hoparlöründen)"""
+            data = request.get_json()
+            sound_type = data.get('sound_type')
+
+            if not sound_type:
+                return jsonify({'status': 'error', 'message': 'sound_type required'}), 400
+
+            self.sound_player.play(sound_type)
+            return jsonify({
+                'status': 'success',
+                'sound_type': sound_type
+            })
+
+        @self.app.route('/api/sound/stop', methods=['POST'])
+        def stop_sound():
+            """Sesi durdur"""
+            self.sound_player.stop()
+            return jsonify({'status': 'success'})
+
+        @self.app.route('/api/sound/volume', methods=['POST'])
+        def set_volume():
+            """Ses seviyesini ayarla"""
+            data = request.get_json()
+            volume = data.get('volume', 50) / 100.0
+            self.sound_player.set_volume(volume)
+            return jsonify({
+                'status': 'success',
+                'volume': int(volume * 100)
+            })
+
+        @self.app.route('/api/sound/status', methods=['GET'])
+        def get_sound_status():
+            """Ses durumunu al"""
+            return jsonify(self.sound_player.get_status())
     
     def setup_socketio(self):
         @self.socketio.on('connect')
