@@ -77,6 +77,23 @@ class BabyMonitorApp:
             data = request.get_json()
             self.camera.update_settings(data)
             return jsonify({'status': 'success'})
+
+        @self.app.route('/api/motion/toggle', methods=['POST'])
+        def toggle_motion_detection():
+            """Hareket algılamayı aç/kapa"""
+            current_state = self.config.MOTION_DETECTION_ENABLED
+            self.config.MOTION_DETECTION_ENABLED = not current_state
+            return jsonify({
+                'status': 'success',
+                'motion_enabled': self.config.MOTION_DETECTION_ENABLED
+            })
+
+        @self.app.route('/api/motion/status', methods=['GET'])
+        def get_motion_status():
+            """Hareket algılama durumunu al"""
+            return jsonify({
+                'motion_enabled': self.config.MOTION_DETECTION_ENABLED
+            })
     
     def setup_socketio(self):
         @self.socketio.on('connect')
@@ -113,6 +130,7 @@ class BabyMonitorApp:
             'camera_fps': self.camera.get_fps(),
             'audio_active': self.audio.is_active(),
             'motion_detected': self.camera.is_motion_detected(),
+            'motion_enabled': self.config.MOTION_DETECTION_ENABLED,
             'timestamp': datetime.now().strftime('%H:%M:%S')
         }
 
