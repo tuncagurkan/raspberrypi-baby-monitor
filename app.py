@@ -23,9 +23,9 @@ class BabyMonitorApp:
         self.config = Config()
 
         # Initialize IP registration
-        print("🍼 Initializing IP registration...")
-        self.ip_service = IPRegistrationService(self.config)
-        self.ip_service.initialize()
+#        print("🍼 Initializing IP registration...")
+#        self.ip_service = IPRegistrationService(self.config)
+#        self.ip_service.initialize()
 
         self.camera = CameraStream(self.config)
         self.audio = AudioStream(self.config)
