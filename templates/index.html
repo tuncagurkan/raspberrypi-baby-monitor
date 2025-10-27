@@ -248,6 +248,28 @@
                     <button onclick="toggleMotionDetection()" id="motionToggleBtn">🚨 Hareket Algılama</button>
                     <button onclick="toggleNightVision()" id="nightVisionBtn">🌙 Gece Görüşü</button>
                 </div>
+
+                <div style="margin-top: 20px; padding: 15px; background: white; border-radius: 10px; box-shadow: 0 5px 15px rgba(0,0,0,0.1);">
+                    <h3 style="margin-top: 0; color: #667eea;">🎵 Sakinleştirici Sesler</h3>
+                    <select id="soundSelect" style="width: 100%; padding: 10px; border-radius: 5px; border: 2px solid #667eea; margin-bottom: 10px;">
+                        <option value="">Ses Seçin...</option>
+                        <option value="whitenoise">🌊 Beyaz Gürültü</option>
+                        <option value="pinknoise">💗 Pembe Gürültü</option>
+                        <option value="shush">🤫 Pış Pış</option>
+                        <option value="heartbeat">💓 Kalp Atışı</option>
+                        <option value="rain">🌧️ Yağmur Sesi</option>
+                        <option value="ocean">🌊 Okyanus Dalgaları</option>
+                    </select>
+                    <div class="controls">
+                        <button onclick="playSoothingSound()" id="playBtn">▶️ Çal</button>
+                        <button onclick="stopSoothingSound()" id="stopBtn">⏹️ Durdur</button>
+                    </div>
+                    <div style="margin-top: 10px;">
+                        <label style="display: block; margin-bottom: 5px;">🔊 Ses Seviyesi:</label>
+                        <input type="range" id="volumeSlider" min="0" max="100" value="50" style="width: 100%;" oninput="updateVolume(this.value)">
+                        <span id="volumeLabel" style="display: block; text-align: center; margin-top: 5px;">50%</span>
+                    </div>
+                </div>
             </div>
             
             <div class="status-panel">
@@ -532,6 +554,186 @@
                 btn.textContent = '🌑 Gece Görüşü: KAPALI';
                 btn.classList.add('motion-off');
             }
+        }
+
+        // Sakinleştirici sesler için Audio API
+        let audioContext = null;
+        let soundSource = null;
+        let gainNode = null;
+        let currentSound = null;
+
+        function initAudioContext() {
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                gainNode = audioContext.createGain();
+                gainNode.connect(audioContext.destination);
+                gainNode.gain.value = 0.5; // 50% volume
+            }
+        }
+
+        function generateWhiteNoise() {
+            const bufferSize = 2 * audioContext.sampleRate;
+            const noiseBuffer = audioContext.createBuffer(1, bufferSize, audioContext.sampleRate);
+            const output = noiseBuffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) {
+                output[i] = Math.random() * 2 - 1;
+            }
+            const whiteNoise = audioContext.createBufferSource();
+            whiteNoise.buffer = noiseBuffer;
+            whiteNoise.loop = true;
+            return whiteNoise;
+        }
+
+        function generatePinkNoise() {
+            const bufferSize = 2 * audioContext.sampleRate;
+            const noiseBuffer = audioContext.createBuffer(1, bufferSize, audioContext.sampleRate);
+            const output = noiseBuffer.getChannelData(0);
+            let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
+            for (let i = 0; i < bufferSize; i++) {
+                const white = Math.random() * 2 - 1;
+                b0 = 0.99886 * b0 + white * 0.0555179;
+                b1 = 0.99332 * b1 + white * 0.0750759;
+                b2 = 0.96900 * b2 + white * 0.1538520;
+                b3 = 0.86650 * b3 + white * 0.3104856;
+                b4 = 0.55000 * b4 + white * 0.5329522;
+                b5 = -0.7616 * b5 - white * 0.0168980;
+                output[i] = b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362;
+                output[i] *= 0.11;
+                b6 = white * 0.115926;
+            }
+            const pinkNoise = audioContext.createBufferSource();
+            pinkNoise.buffer = noiseBuffer;
+            pinkNoise.loop = true;
+            return pinkNoise;
+        }
+
+        function generateShush() {
+            const oscillator = audioContext.createOscillator();
+            const lfo = audioContext.createOscillator();
+            const lfoGain = audioContext.createGain();
+
+            lfo.frequency.value = 3; // 3 Hz modulation
+            lfoGain.gain.value = 200;
+            lfo.connect(lfoGain);
+            lfoGain.connect(oscillator.frequency);
+
+            oscillator.type = 'sawtooth';
+            oscillator.frequency.value = 2000;
+            lfo.start();
+
+            return { main: oscillator, lfo: lfo };
+        }
+
+        function generateHeartbeat() {
+            // Kalp atışı için beat pattern oluştur
+            const beats = [];
+            const bpm = 70; // 70 beats per minute
+            const beatInterval = 60 / bpm;
+
+            for (let i = 0; i < 10; i++) {
+                const oscillator = audioContext.createOscillator();
+                oscillator.type = 'sine';
+                oscillator.frequency.value = 80;
+                beats.push(oscillator);
+            }
+            return beats[0]; // Simplified
+        }
+
+        function generateRain() {
+            // Yağmur sesi - beyaz gürültüye benzer ama daha filtered
+            const whiteNoise = generateWhiteNoise();
+            const filter = audioContext.createBiquadFilter();
+            filter.type = 'lowpass';
+            filter.frequency.value = 1000;
+            whiteNoise.connect(filter);
+            filter.connect(gainNode);
+            return { source: whiteNoise, useCustomConnection: true };
+        }
+
+        function generateOcean() {
+            // Okyanus dalgası - düşük frekanslı modülasyon
+            const oscillator = audioContext.createOscillator();
+            const lfo = audioContext.createOscillator();
+            const lfoGain = audioContext.createGain();
+
+            lfo.frequency.value = 0.3; // Yavaş dalga
+            lfoGain.gain.value = 100;
+            lfo.connect(lfoGain);
+            lfoGain.connect(oscillator.frequency);
+
+            oscillator.type = 'sine';
+            oscillator.frequency.value = 100;
+            lfo.start();
+
+            return { main: oscillator, lfo: lfo };
+        }
+
+        function playSoothingSound() {
+            const soundType = document.getElementById('soundSelect').value;
+            if (!soundType) {
+                alert('Lütfen bir ses seçin');
+                return;
+            }
+
+            stopSoothingSound(); // Önceki sesi durdur
+            initAudioContext();
+
+            currentSound = soundType;
+
+            switch(soundType) {
+                case 'whitenoise':
+                    soundSource = generateWhiteNoise();
+                    soundSource.connect(gainNode);
+                    soundSource.start();
+                    break;
+                case 'pinknoise':
+                    soundSource = generatePinkNoise();
+                    soundSource.connect(gainNode);
+                    soundSource.start();
+                    break;
+                case 'shush':
+                    const shush = generateShush();
+                    soundSource = shush.main;
+                    soundSource.connect(gainNode);
+                    soundSource.start();
+                    break;
+                case 'heartbeat':
+                    soundSource = generateHeartbeat();
+                    soundSource.connect(gainNode);
+                    soundSource.start();
+                    break;
+                case 'rain':
+                    const rain = generateRain();
+                    soundSource = rain.source;
+                    soundSource.start();
+                    break;
+                case 'ocean':
+                    const ocean = generateOcean();
+                    soundSource = ocean.main;
+                    soundSource.connect(gainNode);
+                    soundSource.start();
+                    break;
+            }
+
+            console.log('🎵 Sakinleştirici ses çalıyor:', soundType);
+        }
+
+        function stopSoothingSound() {
+            if (soundSource) {
+                try {
+                    soundSource.stop();
+                } catch(e) {}
+                soundSource = null;
+                currentSound = null;
+                console.log('⏹️ Ses durduruldu');
+            }
+        }
+
+        function updateVolume(value) {
+            if (gainNode) {
+                gainNode.gain.value = value / 100;
+            }
+            document.getElementById('volumeLabel').textContent = value + '%';
         }
 
         // Sayfa yüklendiğinde durum bilgilerini al
