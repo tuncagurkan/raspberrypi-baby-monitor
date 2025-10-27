@@ -34,8 +34,9 @@ class BabyMonitorApp:
         # Hareket algılama callback'i ayarla
         self.camera.set_motion_callback(self.on_motion_detected)
 
-        # Ses algılama callback'i ayarla
-        self.audio.set_sound_callback(self.on_sound_detected)
+        # Ses algılama callback'i ayarla (sadece ses algılama aktifse)
+        if self.config.SOUND_DETECTION_ENABLED:
+            self.audio.set_sound_callback(self.on_sound_detected)
 
         print("🍼 before setups")
         self.connected_clients = 0
