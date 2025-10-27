@@ -28,7 +28,10 @@ class BabyMonitorApp:
 
         self.camera = CameraStream(self.config)
         self.audio = AudioStream(self.config)
-        
+
+        # Hareket algılama callback'i ayarla
+        self.camera.set_motion_callback(self.on_motion_detected)
+
         print("🍼 before setups")
         self.connected_clients = 0
         self.setup_routes()
@@ -74,6 +77,23 @@ class BabyMonitorApp:
             data = request.get_json()
             self.camera.update_settings(data)
             return jsonify({'status': 'success'})
+
+        @self.app.route('/api/motion/toggle', methods=['POST'])
+        def toggle_motion_detection():
+            """Hareket algılamayı aç/kapa"""
+            current_state = self.config.MOTION_DETECTION_ENABLED
+            self.config.MOTION_DETECTION_ENABLED = not current_state
+            return jsonify({
+                'status': 'success',
+                'motion_enabled': self.config.MOTION_DETECTION_ENABLED
+            })
+
+        @self.app.route('/api/motion/status', methods=['GET'])
+        def get_motion_status():
+            """Hareket algılama durumunu al"""
+            return jsonify({
+                'motion_enabled': self.config.MOTION_DETECTION_ENABLED
+            })
     
     def setup_socketio(self):
         @self.socketio.on('connect')
@@ -109,8 +129,18 @@ class BabyMonitorApp:
         return {
             'camera_fps': self.camera.get_fps(),
             'audio_active': self.audio.is_active(),
+            'motion_detected': self.camera.is_motion_detected(),
+            'motion_enabled': self.config.MOTION_DETECTION_ENABLED,
             'timestamp': datetime.now().strftime('%H:%M:%S')
         }
+
+    def on_motion_detected(self, motion_percentage):
+        """Hareket algılandığında çağrılır"""
+        print(f"🚨 Hareket bildirimi gönderiliyor! (%{motion_percentage:.2f})")
+        self.socketio.emit('motion_alert', {
+            'motion_percentage': round(motion_percentage, 2),
+            'timestamp': datetime.now().strftime('%H:%M:%S')
+        })
     
     def run(self):
         print("🍼 Baby Monitor başlatılıyor...")
