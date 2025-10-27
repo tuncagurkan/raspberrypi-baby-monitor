@@ -107,7 +107,7 @@
         .controls {
             margin-top: 20px;
             display: grid;
-            grid-template-columns: 1fr 1fr;
+            grid-template-columns: 1fr 1fr 1fr;
             gap: 10px;
         }
         
@@ -125,6 +125,11 @@
         button:hover {
             transform: translateY(-2px);
             box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+
+        button.motion-off {
+            background: linear-gradient(45deg, #6c757d, #495057);
+            opacity: 0.7;
         }
         
         .connection-status {
@@ -238,6 +243,7 @@
                 <div class="controls">
                     <button onclick="refreshStream()">🔄 Yenile</button>
                     <button onclick="toggleFullscreen()">🖼️ Tam Ekran</button>
+                    <button onclick="toggleMotionDetection()" id="motionToggleBtn">🚨 Hareket Algılama</button>
                 </div>
             </div>
             
@@ -343,6 +349,11 @@
             } else {
                 motionEl.textContent = 'Normal';
                 motionEl.className = 'status-value status-normal';
+            }
+
+            // Hareket algılama butonu durumu
+            if (data.motion_enabled !== undefined) {
+                updateMotionButton(data.motion_enabled);
             }
             
             // İleride sıcaklık eklenebilir
@@ -454,10 +465,47 @@
                 videoEl.msRequestFullscreen();
             }
         }
-        
+
+        // Hareket algılamayı aç/kapa
+        function toggleMotionDetection() {
+            fetch('/api/motion/toggle', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    updateMotionButton(data.motion_enabled);
+                    console.log('Hareket algılama:', data.motion_enabled ? 'AÇIK' : 'KAPALI');
+                }
+            })
+            .catch(error => console.error('Hata:', error));
+        }
+
+        // Hareket algılama butonunu güncelle
+        function updateMotionButton(enabled) {
+            const btn = document.getElementById('motionToggleBtn');
+            if (enabled) {
+                btn.textContent = '🚨 Hareket Algılama: AÇIK';
+                btn.classList.remove('motion-off');
+            } else {
+                btn.textContent = '🚫 Hareket Algılama: KAPALI';
+                btn.classList.add('motion-off');
+            }
+        }
+
         // Sayfa yüklendiğinde durum bilgilerini al
         window.addEventListener('load', function() {
             socket.emit('request_status');
+
+            // Hareket algılama durumunu al
+            fetch('/api/motion/status')
+                .then(response => response.json())
+                .then(data => {
+                    updateMotionButton(data.motion_enabled);
+                });
         });
         
         // Video stream hata durumu

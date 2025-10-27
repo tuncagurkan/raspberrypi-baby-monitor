@@ -14,17 +14,12 @@ class CameraStream:
         self.fps_counter = 0
         self.fps = 0
 
-        # Hareket algılama
+        # Hareket algılama (basit frame difference)
         self.motion_detected = False
         self.motion_callback = None  # Hareket algılandığında çağrılacak callback
         self.motion_frame_counter = 0  # Performans için frame atlama sayacı
         self.motion_boxes = []  # Hareket algılanan bölgelerin koordinatları
-        if self.config.MOTION_DETECTION_ENABLED:
-            self.bg_subtractor = cv2.createBackgroundSubtractorMOG2(
-                detectShadows=False,  # Shadow detection kapalı (performans)
-                varThreshold=25,  # Daha yüksek threshold (performans)
-                history=200  # Daha az history (performans)
-            )
+        self.prev_frame = None  # Önceki frame (frame difference için)
         
         self.initialize_camera()
         self.start_streaming()
@@ -89,56 +84,45 @@ class CameraStream:
         return frame_with_info
     
     def _detect_motion(self, frame):
-        """Hareket tespiti algoritması (optimize edilmiş)"""
-        # Frame'i küçült (performans için)
-        small_frame = cv2.resize(frame, (320, 240))
-
-        # Ölçek oranını hesapla (bounding box için)
-        scale_x = frame.shape[1] / 320
-        scale_y = frame.shape[0] / 240
+        """Hareket tespiti - ULTRA BASIT (frame difference only)"""
+        # Çok küçük frame (performans)
+        small_frame = cv2.resize(frame, (160, 120))
 
         # Gri tonlama
         gray = cv2.cvtColor(small_frame, cv2.COLOR_BGR2GRAY)
 
-        # Gaussian blur (daha küçük kernel - performans)
-        gray = cv2.GaussianBlur(gray, (11, 11), 0)
+        # Basit blur
+        gray = cv2.GaussianBlur(gray, (5, 5), 0)
 
-        # Background subtraction
-        fg_mask = self.bg_subtractor.apply(gray)
+        # İlk frame ise kaydet ve çık
+        if self.prev_frame is None:
+            self.prev_frame = gray
+            return
 
-        # Basit threshold (morfolojik işlemler yavaş)
-        _, fg_mask = cv2.threshold(fg_mask, 200, 255, cv2.THRESH_BINARY)
+        # Frame farkı (en basit yöntem)
+        frame_diff = cv2.absdiff(self.prev_frame, gray)
 
-        # Hareket alanını hesapla
-        motion_pixels = cv2.countNonZero(fg_mask)
-        total_pixels = gray.shape[0] * gray.shape[1]
+        # Threshold
+        _, thresh = cv2.threshold(frame_diff, 25, 255, cv2.THRESH_BINARY)
+
+        # Hareket yüzdesi
+        motion_pixels = cv2.countNonZero(thresh)
+        total_pixels = thresh.shape[0] * thresh.shape[1]
         motion_percentage = (motion_pixels / total_pixels) * 100
 
-        # Hareket threshold'u
+        # Hareket tespit
         was_detected = self.motion_detected
         self.motion_detected = motion_percentage > self.config.MOTION_THRESHOLD
 
-        # Hareket bölgelerini bul (sadece hareket varsa)
+        # Bounding box yok (çok yavaş - atla)
         self.motion_boxes = []
-        if self.motion_detected:
-            # Contour bul (küçük frame üzerinde - performans)
-            contours, _ = cv2.findContours(fg_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-            # Sadece büyük contour'ları al (gürültü filtreleme)
-            for contour in contours:
-                if cv2.contourArea(contour) > 500:  # Minimum alan (performans)
-                    x, y, w, h = cv2.boundingRect(contour)
-                    # Orijinal boyuta ölçeklendir
-                    x_scaled = int(x * scale_x)
-                    y_scaled = int(y * scale_y)
-                    w_scaled = int(w * scale_x)
-                    h_scaled = int(h * scale_y)
-                    self.motion_boxes.append((x_scaled, y_scaled, w_scaled, h_scaled))
+        # Önceki frame'i güncelle
+        self.prev_frame = gray
 
-        # Yeni hareket algılandıysa callback'i çağır
+        # Callback
         if self.motion_detected and not was_detected and self.motion_callback:
             self.motion_callback(motion_percentage)
-            print(f"🔍 Hareket tespit edildi! (%{motion_percentage:.2f})")
     
     def _add_overlay_info(self, frame):
         """Frame üzerine bilgi overlay'i ekle (minimal - performans)"""
