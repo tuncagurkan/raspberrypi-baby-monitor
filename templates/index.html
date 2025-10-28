@@ -259,10 +259,15 @@
                         <option value="heartbeat">💓 Kalp Atışı</option>
                         <option value="rain">🌧️ Yağmur Sesi</option>
                         <option value="ocean">🌊 Okyanus Dalgaları</option>
+                        <option value="lullaby">🎶 Dandini Dandini Dastana</option>
                     </select>
                     <div class="controls">
                         <button onclick="playSoothingSound()" id="playBtn">▶️ Çal</button>
                         <button onclick="stopSoothingSound()" id="stopBtn">⏹️ Durdur</button>
+                    </div>
+                    <div id="soundStatusDiv" style="display: none; margin-top: 10px; padding: 10px; background: #e3f2fd; border-radius: 5px; text-align: center; font-weight: bold; color: #1976d2;">
+                        <div style="font-size: 1.1em; margin-bottom: 5px;" id="currentSoundName">🎵 --</div>
+                        <div style="font-size: 1.3em; color: #0d47a1;" id="elapsedTime">⏱️ 0:00</div>
                     </div>
                     <div style="margin-top: 10px;">
                         <label style="display: block; margin-bottom: 5px;">🔊 Ses Seviyesi:</label>
@@ -347,6 +352,11 @@
         // Hareket bildirimi
         socket.on('motion_alert', function(data) {
             showMotionAlert(data);
+        });
+
+        // Ses durumu güncellemesi
+        socket.on('sound_status', function(data) {
+            updateSoundStatus(data);
         });
         
         function updateConnectionStatus(connected) {
@@ -558,6 +568,34 @@
 
         // Sakinleştirici sesler için (Raspberry Pi üzerinde çalıyor)
         let currentSound = null;
+
+        // Ses isimleri
+        const soundNames = {
+            'whitenoise': '🌊 Beyaz Gürültü',
+            'pinknoise': '💗 Pembe Gürültü',
+            'shush': '🤫 Pış Pış',
+            'heartbeat': '💓 Kalp Atışı',
+            'rain': '🌧️ Yağmur Sesi',
+            'ocean': '🌊 Okyanus Dalgaları',
+            'lullaby': '🎶 Dandini Dandini Dastana'
+        };
+
+        // Ses durumu güncellemesi
+        function updateSoundStatus(data) {
+            const statusDiv = document.getElementById('soundStatusDiv');
+            const soundNameEl = document.getElementById('currentSoundName');
+            const elapsedTimeEl = document.getElementById('elapsedTime');
+
+            if (data.is_playing && data.current_sound) {
+                // Ses çalıyor - göster
+                statusDiv.style.display = 'block';
+                soundNameEl.textContent = soundNames[data.current_sound] || data.current_sound;
+                elapsedTimeEl.textContent = '⏱️ ' + data.elapsed_time;
+            } else {
+                // Ses durmuş - gizle
+                statusDiv.style.display = 'none';
+            }
+        }
 
         function playSoothingSound() {
             const soundType = document.getElementById('soundSelect').value;

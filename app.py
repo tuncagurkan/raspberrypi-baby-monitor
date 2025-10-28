@@ -180,8 +180,12 @@ class BabyMonitorApp:
                 if self.connected_clients > 0:
                     status = self.get_current_status()
                     self.socketio.emit('status_update', status)
-                time.sleep(2)  # Her 2 saniyede bir güncelle
-        
+
+                    # Ses durumunu ayrıca gönder
+                    sound_status = self.sound_player.get_status()
+                    self.socketio.emit('sound_status', sound_status)
+                time.sleep(1)  # Her 1 saniyede bir güncelle (ses için daha sık)
+
         status_thread = threading.Thread(target=broadcast_status, daemon=True)
         status_thread.start()
     

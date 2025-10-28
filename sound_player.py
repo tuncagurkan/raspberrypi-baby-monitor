@@ -2,6 +2,8 @@ import numpy as np
 import pyaudio
 import threading
 import time
+import wave
+import os
 
 class SoundPlayer:
     def __init__(self, config):
@@ -12,6 +14,7 @@ class SoundPlayer:
         self.current_sound = None
         self.volume = 0.5
         self.play_thread = None
+        self.start_time = None
 
         self.initialize_audio()
 
@@ -26,94 +29,257 @@ class SoundPlayer:
             self.audio = None
 
     def generate_white_noise(self, duration=1.0):
-        """Beyaz gürültü üret"""
+        """Bebek için optimize edilmiş beyaz gürültü (<500Hz ağırlıklı)"""
         sample_rate = 44100
         samples = int(sample_rate * duration)
+
+        # Beyaz gürültü üret
         noise = np.random.uniform(-1, 1, samples)
-        return (noise * 32767 * self.volume).astype(np.int16)
+
+        # Düşük frekans vurgusu için basit low-pass filter (bebek için)
+        # FFT kullanmadan basit moving average
+        window_size = int(sample_rate / 500)  # 500Hz kesim
+        filtered = np.convolve(noise, np.ones(window_size)/window_size, mode='same')
+
+        # Normalize et ve ses seviyesini düşür (50dB için)
+        filtered = filtered / np.max(np.abs(filtered)) * 0.4
+        return (filtered * 32767 * self.volume).astype(np.int16)
 
     def generate_pink_noise(self, duration=1.0):
-        """Pembe gürültü üret"""
+        """Bebek için pembe gürültü (yağmur/okyanus gibi doğal sesler)"""
         sample_rate = 44100
         samples = int(sample_rate * duration)
 
-        # Pink noise filter
+        # Pink noise - bass-heavy
         white = np.random.uniform(-1, 1, samples)
+
+        # Pink noise filter (1/f spectrum)
         b = [0.049922035, -0.095993537, 0.050612699, -0.004408786]
         a = [1, -2.494956002, 2.017265875, -0.522189400]
 
-        # Simple approximation
         pink = np.zeros(samples)
         for i in range(len(b)):
             if i < len(white):
                 pink += b[i] * np.roll(white, i)
 
-        pink = pink / np.max(np.abs(pink))
+        # Normalize ve yumuşat
+        pink = pink / np.max(np.abs(pink)) * 0.35
         return (pink * 32767 * self.volume).astype(np.int16)
 
     def generate_shush(self, duration=1.0):
-        """Pış pış sesi üret"""
+        """Bebek sakinleştirici pış pış sesi (500-2000Hz, ritmik)"""
         sample_rate = 44100
         samples = int(sample_rate * duration)
         t = np.linspace(0, duration, samples)
 
-        # Modulated noise
-        carrier = 2000 + 200 * np.sin(2 * np.pi * 3 * t)
+        # Band-limited noise (500-2000Hz) - anne/baba sesi taklidi
         noise = np.random.uniform(-1, 1, samples)
 
-        # Apply envelope
-        envelope = 0.5 + 0.5 * np.sin(2 * np.pi * 3 * t)
-        shush = noise * envelope * 0.3
+        # Low-pass filter (~2000Hz)
+        window_size = int(sample_rate / 2000)
+        filtered_noise = np.convolve(noise, np.ones(window_size)/window_size, mode='same')
+
+        # Ritmik pulsing (delta frequency ~3Hz - derin uyku frekansı)
+        # Yumuşak pulsing
+        envelope = 0.6 + 0.4 * np.sin(2 * np.pi * 3 * t)
+
+        shush = filtered_noise * envelope * 0.25  # Daha yumuşak
 
         return (shush * 32767 * self.volume).astype(np.int16)
 
     def generate_heartbeat(self, duration=1.0):
-        """Kalp atışı üret"""
+        """Anne karnındaki kalp atışı (70 BPM, <250Hz, rahim sesi)"""
         sample_rate = 44100
         samples = int(sample_rate * duration)
         t = np.linspace(0, duration, samples)
 
-        bpm = 70
-        beat_freq = bpm / 60.0
+        bpm = 70  # Anne kalp atışı
+        beat_period = 60.0 / bpm  # 0.857 saniye
+        beat_samples = int(sample_rate * beat_period)
 
-        # Two beats (lub-dub)
-        beat1 = np.sin(2 * np.pi * 80 * t) * np.exp(-10 * t)
-        beat2 = np.sin(2 * np.pi * 60 * (t - 0.15)) * np.exp(-10 * (t - 0.15))
-        beat2[t < 0.15] = 0
+        # Tek bir kalp atışı oluştur (lub-dub)
+        single_beat_t = np.linspace(0, beat_period, beat_samples)
 
-        heartbeat = beat1 + beat2
-        heartbeat = np.tile(heartbeat[:int(sample_rate/beat_freq)], int(beat_freq * duration) + 1)[:samples]
+        # Lub (düşük frekans ~60Hz, kuvvetli)
+        lub = np.sin(2 * np.pi * 60 * single_beat_t) * np.exp(-15 * single_beat_t)
 
-        return (heartbeat * 32767 * self.volume * 0.5).astype(np.int16)
+        # Dub (daha yüksek ~100Hz, hafif, 0.2 saniye sonra)
+        dub_t = single_beat_t - 0.2
+        dub = np.sin(2 * np.pi * 100 * dub_t) * np.exp(-20 * dub_t) * 0.6
+        dub[dub_t < 0] = 0
+
+        # Combine
+        single_beat = lub + dub
+
+        # Rahim yankısı ekle (düşük frekanslı reverb)
+        reverb = np.convolve(single_beat, np.exp(-np.linspace(0, 5, 1000)), mode='same') * 0.1
+        single_beat = single_beat + reverb
+
+        # Tüm duration için tekrarla
+        num_beats = int(duration / beat_period) + 1
+        heartbeat = np.tile(single_beat, num_beats)[:samples]
+
+        # Yumuşak ses seviyesi
+        return (heartbeat * 32767 * self.volume * 0.35).astype(np.int16)
 
     def generate_rain(self, duration=1.0):
-        """Yağmur sesi üret"""
+        """Yumuşak yağmur sesi (doğal pembe gürültü, rahatlatıcı)"""
         sample_rate = 44100
         samples = int(sample_rate * duration)
 
-        # Filtered white noise for rain
+        # Pembe gürültü benzeri (yağmur için uygun)
         noise = np.random.uniform(-1, 1, samples)
 
-        # Low-pass filter approximation
-        filtered = np.convolve(noise, np.ones(20)/20, mode='same')
-        filtered = filtered / np.max(np.abs(filtered))
+        # Gentle low-pass filter (yağmur damlaları efekti)
+        window_size = int(sample_rate / 800)
+        filtered = np.convolve(noise, np.ones(window_size)/window_size, mode='same')
 
-        return (filtered * 32767 * self.volume * 0.7).astype(np.int16)
+        # Random intensity variations (doğal yağmur)
+        t = np.linspace(0, duration, samples)
+        intensity = 0.7 + 0.3 * np.sin(2 * np.pi * 0.2 * t)  # Yavaş değişim
+
+        rain = filtered * intensity
+        rain = rain / np.max(np.abs(rain)) * 0.3
+
+        return (rain * 32767 * self.volume).astype(np.int16)
 
     def generate_ocean(self, duration=1.0):
-        """Okyanus dalgası üret"""
+        """Yumuşak okyanus dalgaları (düşük frekans, derin uyku)"""
         sample_rate = 44100
         samples = int(sample_rate * duration)
         t = np.linspace(0, duration, samples)
 
-        # Low frequency oscillation with noise
-        wave = np.sin(2 * np.pi * 0.3 * t) * 0.5
-        noise = np.random.uniform(-0.2, 0.2, samples)
+        # Çok yavaş dalga hareketi (0.2Hz - rahim içi sıvı hareketi benzeri)
+        wave1 = np.sin(2 * np.pi * 0.2 * t) * 0.4
+        wave2 = np.sin(2 * np.pi * 0.15 * t + np.pi/3) * 0.3  # Harmonik
 
-        ocean = wave + noise
-        ocean = ocean / np.max(np.abs(ocean))
+        # Yumuşak arka plan gürültüsü (köpük/su sesi)
+        noise = np.random.uniform(-0.15, 0.15, samples)
 
-        return (ocean * 32767 * self.volume * 0.6).astype(np.int16)
+        # Low-pass filter noise
+        window_size = int(sample_rate / 300)
+        filtered_noise = np.convolve(noise, np.ones(window_size)/window_size, mode='same')
+
+        # Combine
+        ocean = wave1 + wave2 + filtered_noise * 0.5
+        ocean = ocean / np.max(np.abs(ocean)) * 0.28
+
+        return (ocean * 32767 * self.volume).astype(np.int16)
+
+    def generate_lullaby(self, duration=1.0):
+        """Yumuşak ninni melodisi (basit, tekrarlayan, rahatlatıcı)"""
+        sample_rate = 44100
+        samples = int(sample_rate * duration)
+
+        # Ninni notaları (Hz) - basit bir melodi: C4-E4-G4-E4-C4-D4-E4-D4
+        # Düşük oktav, yumuşak
+        notes = [
+            261.63,  # C4 (Do)
+            329.63,  # E4 (Mi)
+            392.00,  # G4 (Sol)
+            329.63,  # E4 (Mi)
+            261.63,  # C4 (Do)
+            293.66,  # D4 (Re)
+            329.63,  # E4 (Mi)
+            293.66,  # D4 (Re)
+        ]
+
+        note_duration = duration / len(notes)  # Her notanın süresi
+        note_samples = int(sample_rate * note_duration)
+
+        lullaby = np.zeros(samples)
+
+        for i, freq in enumerate(notes):
+            start = i * note_samples
+            end = min(start + note_samples, samples)
+            t = np.linspace(0, note_duration, end - start)
+
+            # Yumuşak sine wave + hafif harmonik
+            note = np.sin(2 * np.pi * freq * t)  # Ana nota
+            note += 0.2 * np.sin(2 * np.pi * freq * 2 * t)  # Harmonik
+
+            # ADSR envelope (yumuşak başlangıç ve bitiş)
+            attack = int(note_samples * 0.1)
+            release = int(note_samples * 0.2)
+            envelope = np.ones(len(t))
+
+            if len(t) > attack:
+                envelope[:attack] = np.linspace(0, 1, attack)
+            if len(t) > release:
+                envelope[-release:] = np.linspace(1, 0, release)
+
+            note = note * envelope
+            lullaby[start:end] = note
+
+        # Normalize ve yumuşak ses seviyesi
+        lullaby = lullaby / np.max(np.abs(lullaby)) * 0.25
+
+        return (lullaby * 32767 * self.volume).astype(np.int16)
+
+    def _play_file_loop(self, sound_type, file_path):
+        """Ses dosyasından çalma döngüsü"""
+        if not self.audio:
+            print("❌ Audio not initialized")
+            return
+
+        if not os.path.exists(file_path):
+            print(f"❌ File not found: {file_path}")
+            return
+
+        try:
+            # Dosyayı aç
+            wf = wave.open(file_path, 'rb')
+
+            # Stream'i dosya parametreleriyle aç
+            self.stream = self.audio.open(
+                format=self.audio.get_format_from_width(wf.getsampwidth()),
+                channels=wf.getnchannels(),
+                rate=wf.getframerate(),
+                output=True
+            )
+
+            print(f"🎵 Playing: {sound_type} from file")
+
+            # Chunk size (0.5 saniye)
+            chunk_size = int(wf.getframerate() * 0.5)
+
+            while self.is_playing and self.current_sound == sound_type:
+                # Dosyayı baştan başlat (loop için)
+                wf.rewind()
+
+                # Dosyayı chunk'lar halinde oku ve çal
+                while self.is_playing and self.current_sound == sound_type:
+                    data = wf.readframes(chunk_size)
+                    if not data:
+                        break  # Dosya bitti, başa dön
+
+                    # Ses seviyesini ayarla
+                    if self.volume != 1.0:
+                        audio_array = np.frombuffer(data, dtype=np.int16)
+                        audio_array = (audio_array * self.volume).astype(np.int16)
+                        data = audio_array.tobytes()
+
+                    if self.is_playing:
+                        self.stream.write(data)
+
+            # Temizlik
+            wf.close()
+            if self.stream:
+                if self.stream.is_active():
+                    self.stream.stop_stream()
+                self.stream.close()
+                self.stream = None
+            print("⏹️ Sound loop ended")
+
+        except Exception as e:
+            print(f"❌ File playback error: {e}")
+            self.is_playing = False
+            if self.stream:
+                try:
+                    self.stream.close()
+                except:
+                    pass
+                self.stream = None
 
     def _play_loop(self, sound_type):
         """Ses çalma döngüsü"""
@@ -180,7 +346,15 @@ class SoundPlayer:
 
         self.current_sound = sound_type
         self.is_playing = True
-        self.play_thread = threading.Thread(target=self._play_loop, args=(sound_type,), daemon=True)
+        self.start_time = time.time()  # Başlangıç zamanını kaydet
+
+        # Ninni için dosyadan çal
+        if sound_type == 'lullaby':
+            lullaby_file = os.path.join(os.path.dirname(__file__), 'sounds', 'dandini.wav')
+            self.play_thread = threading.Thread(target=self._play_file_loop, args=(sound_type, lullaby_file), daemon=True)
+        else:
+            self.play_thread = threading.Thread(target=self._play_loop, args=(sound_type,), daemon=True)
+
         self.play_thread.start()
 
     def stop(self):
@@ -203,6 +377,7 @@ class SoundPlayer:
                 self.stream = None
 
         self.current_sound = None
+        self.start_time = None
         print("⏹️ Sound stopped cleanly")
 
     def set_volume(self, volume):
@@ -211,10 +386,21 @@ class SoundPlayer:
 
     def get_status(self):
         """Mevcut durumu al"""
+        elapsed_seconds = 0
+        if self.is_playing and self.start_time:
+            elapsed_seconds = int(time.time() - self.start_time)
+
+        # Süreyi dakika:saniye formatına çevir
+        minutes = elapsed_seconds // 60
+        seconds = elapsed_seconds % 60
+        elapsed_str = f"{minutes}:{seconds:02d}"
+
         return {
             'is_playing': self.is_playing,
             'current_sound': self.current_sound,
-            'volume': int(self.volume * 100)
+            'volume': int(self.volume * 100),
+            'elapsed_seconds': elapsed_seconds,
+            'elapsed_time': elapsed_str
         }
 
     def cleanup(self):
