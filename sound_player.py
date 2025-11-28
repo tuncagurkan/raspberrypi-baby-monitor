@@ -352,6 +352,9 @@ class SoundPlayer:
         if sound_type == 'lullaby':
             lullaby_file = os.path.join(os.path.dirname(__file__), 'sounds', 'dandini.wav')
             self.play_thread = threading.Thread(target=self._play_file_loop, args=(sound_type, lullaby_file), daemon=True)
+        elif sound_type == 'lullaby2':
+            lullaby_file = os.path.join(os.path.dirname(__file__), 'sounds', 'beyaz_gurultu.wav')
+            self.play_thread = threading.Thread(target=self._play_file_loop, args=(sound_type, lullaby_file), daemon=True)
         else:
             self.play_thread = threading.Thread(target=self._play_loop, args=(sound_type,), daemon=True)
 

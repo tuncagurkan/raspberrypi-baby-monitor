@@ -1,1 +1,2 @@
 sounds/*.wav filter=lfs diff=lfs merge=lfs -text
+sounds/beyaz_gurultu.wav filter=lfs diff=lfs merge=lfs -text
