@@ -248,6 +248,28 @@
                     <button onclick="toggleMotionDetection()" id="motionToggleBtn">🚨 Hareket Algılama</button>
                     <button onclick="toggleNightVision()" id="nightVisionBtn">🌙 Gece Görüşü</button>
                 </div>
+
+                <div style="margin-top: 20px; padding: 15px; background: white; border-radius: 10px; box-shadow: 0 5px 15px rgba(0,0,0,0.1);">
+                    <h3 style="margin-top: 0; color: #667eea;">🎵 Sakinleştirici Sesler</h3>
+                    <select id="soundSelect" style="width: 100%; padding: 10px; border-radius: 5px; border: 2px solid #667eea; margin-bottom: 10px;">
+                        <option value="">Ses Seçin...</option>
+                        <option value="whitenoise">🌊 Beyaz Gürültü</option>
+                        <option value="pinknoise">💗 Pembe Gürültü</option>
+                        <option value="shush">🤫 Pış Pış</option>
+                        <option value="heartbeat">💓 Kalp Atışı</option>
+                        <option value="rain">🌧️ Yağmur Sesi</option>
+                        <option value="ocean">🌊 Okyanus Dalgaları</option>
+                    </select>
+                    <div class="controls">
+                        <button onclick="playSoothingSound()" id="playBtn">▶️ Çal</button>
+                        <button onclick="stopSoothingSound()" id="stopBtn">⏹️ Durdur</button>
+                    </div>
+                    <div style="margin-top: 10px;">
+                        <label style="display: block; margin-bottom: 5px;">🔊 Ses Seviyesi:</label>
+                        <input type="range" id="volumeSlider" min="0" max="100" value="50" style="width: 100%;" oninput="updateVolume(this.value)">
+                        <span id="volumeLabel" style="display: block; text-align: center; margin-top: 5px;">50%</span>
+                    </div>
+                </div>
             </div>
             
             <div class="status-panel">
@@ -532,6 +554,71 @@
                 btn.textContent = '🌑 Gece Görüşü: KAPALI';
                 btn.classList.add('motion-off');
             }
+        }
+
+        // Sakinleştirici sesler için (Raspberry Pi üzerinde çalıyor)
+        let currentSound = null;
+
+        function playSoothingSound() {
+            const soundType = document.getElementById('soundSelect').value;
+            if (!soundType) {
+                alert('Lütfen bir ses seçin');
+                return;
+            }
+
+            // Raspberry Pi'ye ses çalma isteği gönder
+            fetch('/api/sound/play', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ sound_type: soundType })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    currentSound = soundType;
+                    console.log('🎵 Raspberry Pi\'de ses çalıyor:', soundType);
+                    alert('Ses Raspberry Pi hoparlöründen çalıyor!');
+                }
+            })
+            .catch(error => console.error('Hata:', error));
+        }
+
+        function stopSoothingSound() {
+            // Raspberry Pi'ye ses durdurma isteği gönder
+            fetch('/api/sound/stop', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    currentSound = null;
+                    console.log('⏹️ Ses durduruldu');
+                }
+            })
+            .catch(error => console.error('Hata:', error));
+        }
+
+        function updateVolume(value) {
+            // Raspberry Pi'ye ses seviyesi gönder
+            fetch('/api/sound/volume', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ volume: parseInt(value) })
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log('Ses seviyesi:', data.volume + '%');
+            })
+            .catch(error => console.error('Hata:', error));
+
+            document.getElementById('volumeLabel').textContent = value + '%';
         }
 
         // Sayfa yüklendiğinde durum bilgilerini al
