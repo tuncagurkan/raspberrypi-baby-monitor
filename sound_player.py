@@ -23,6 +23,14 @@ class SoundPlayer:
         print("🔊 Initializing sound player")
         try:
             self.audio = pyaudio.PyAudio()
+
+            # Debug: List all audio devices
+            print("\n📱 Available audio devices:")
+            for i in range(self.audio.get_device_count()):
+                info = self.audio.get_device_info_by_index(i)
+                print(f"  [{i}] {info['name']} - Output channels: {info['maxOutputChannels']}")
+            print()
+
             print("✅ Sound player initialized")
         except Exception as e:
             print(f"❌ Sound player error: {e}")
@@ -218,6 +226,9 @@ class SoundPlayer:
 
     def _play_file_loop(self, sound_type, file_path):
         """Ses dosyasından çalma döngüsü"""
+        print(f"🎬 Starting playback for {sound_type}")
+        print(f"   File path: {file_path}")
+
         if not self.audio:
             print("❌ Audio not initialized")
             return
@@ -226,9 +237,16 @@ class SoundPlayer:
             print(f"❌ File not found: {file_path}")
             return
 
+        print(f"✅ File exists, size: {os.path.getsize(file_path) / 1024 / 1024:.2f} MB")
+
         try:
             # Dosyayı aç
             wf = wave.open(file_path, 'rb')
+            print(f"🎼 WAV file opened:")
+            print(f"   Channels: {wf.getnchannels()}")
+            print(f"   Sample width: {wf.getsampwidth()} bytes")
+            print(f"   Frame rate: {wf.getframerate()} Hz")
+            print(f"   Frames: {wf.getnframes()}")
 
             # Stream'i dosya parametreleriyle aç
             self.stream = self.audio.open(
@@ -239,6 +257,7 @@ class SoundPlayer:
             )
 
             print(f"🎵 Playing: {sound_type} from file")
+            print(f"   Volume: {int(self.volume * 100)}%")
 
             # Chunk size (0.5 saniye)
             chunk_size = int(wf.getframerate() * 0.5)
@@ -338,9 +357,13 @@ class SoundPlayer:
 
     def play(self, sound_type):
         """Ses çalmaya başla"""
+        print(f"\n{'='*60}")
+        print(f"🎮 PLAY REQUEST: {sound_type}")
+        print(f"{'='*60}")
+
         # Önceki sesi temizce durdur
         if self.is_playing:
-            print(f"Stopping previous sound...")
+            print(f"⏸️  Stopping previous sound: {self.current_sound}")
             self.stop()
             time.sleep(0.5)  # ALSA'nın temizlenmesini bekle
 
@@ -351,14 +374,19 @@ class SoundPlayer:
         # Ninni için dosyadan çal
         if sound_type == 'lullaby':
             lullaby_file = os.path.join(os.path.dirname(__file__), 'sounds', 'dandini.wav')
+            print(f"🎵 Selected: Dandini Dandini Dastana")
             self.play_thread = threading.Thread(target=self._play_file_loop, args=(sound_type, lullaby_file), daemon=True)
         elif sound_type == 'lullaby2':
             lullaby_file = os.path.join(os.path.dirname(__file__), 'sounds', 'beyaz_gurultu.wav')
+            print(f"🎵 Selected: Beyaz Gürültü Ninni")
             self.play_thread = threading.Thread(target=self._play_file_loop, args=(sound_type, lullaby_file), daemon=True)
         else:
+            print(f"🎵 Selected: Generated sound ({sound_type})")
             self.play_thread = threading.Thread(target=self._play_loop, args=(sound_type,), daemon=True)
 
+        print(f"🚀 Starting playback thread...")
         self.play_thread.start()
+        print(f"✅ Thread started successfully\n")
 
     def stop(self):
         """Sesi durdur"""
