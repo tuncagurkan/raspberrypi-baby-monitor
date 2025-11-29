@@ -262,7 +262,11 @@ class SoundPlayer:
             # Chunk size (0.5 saniye)
             chunk_size = int(wf.getframerate() * 0.5)
 
+            loop_count = 0
             while self.is_playing and self.current_sound == sound_type:
+                loop_count += 1
+                print(f"🔁 Loop #{loop_count}: Playing from beginning...")
+
                 # Dosyayı baştan başlat (loop için)
                 wf.rewind()
 
@@ -270,6 +274,7 @@ class SoundPlayer:
                 while self.is_playing and self.current_sound == sound_type:
                     data = wf.readframes(chunk_size)
                     if not data:
+                        print(f"✅ Loop #{loop_count}: Reached end of file, restarting...")
                         break  # Dosya bitti, başa dön
 
                     # Ses seviyesini ayarla
