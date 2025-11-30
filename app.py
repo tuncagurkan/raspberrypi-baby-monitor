@@ -154,6 +154,17 @@ class BabyMonitorApp:
         def get_sound_status():
             """Ses durumunu al"""
             return jsonify(self.sound_player.get_status())
+
+        @self.app.route('/api/system/shutdown', methods=['POST'])
+        def shutdown_system():
+            """Sistemi kapat"""
+            import subprocess
+            try:
+                # Raspberry Pi'yi kapat
+                subprocess.Popen(['sudo', 'shutdown', 'now'])
+                return jsonify({'status': 'success', 'message': 'Sistem kapatılıyor...'})
+            except Exception as e:
+                return jsonify({'status': 'error', 'message': str(e)}), 500
     
     def setup_socketio(self):
         @self.socketio.on('connect')

@@ -213,9 +213,39 @@
             25% { transform: translateX(-5px); }
             75% { transform: translateX(5px); }
         }
+
+        /* Shutdown button */
+        .shutdown-btn {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: linear-gradient(135deg, #dc2626, #b91c1c);
+            color: white;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(220, 38, 38, 0.3);
+            z-index: 1002;
+            font-weight: bold;
+            font-size: 0.95em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .shutdown-btn:hover {
+            background: linear-gradient(135deg, #b91c1c, #991b1b);
+            transform: translateY(-2px);
+            box-shadow: 0 7px 20px rgba(220, 38, 38, 0.4);
+        }
+
+        .shutdown-btn:active {
+            transform: translateY(0);
+        }
     </style>
 </head>
 <body>
+    <button class="shutdown-btn" onclick="shutdownSystem()">🔌 Cihazı Kapat</button>
+
     <div class="container">
         <div class="header">
             <h1>🍼 Baby Monitor</h1>
@@ -607,6 +637,31 @@
             } else {
                 btn.textContent = '🌑 Gece Görüşü: KAPALI';
                 btn.classList.add('motion-off');
+            }
+        }
+
+        // Sistemi kapat
+        function shutdownSystem() {
+            if (confirm('Cihazı kapatmak istediğinize emin misiniz?')) {
+                fetch('/api/system/shutdown', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        alert('Sistem kapatılıyor...');
+                        console.log('Sistem kapatma komutu gönderildi');
+                    } else {
+                        alert('Hata: ' + data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Shutdown hatası:', error);
+                    alert('Sistem kapatma isteği gönderilemedi');
+                });
             }
         }
 
