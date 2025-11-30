@@ -341,6 +341,36 @@
         setInterval(updateClock, 1000);
         updateClock(); // İlk güncelleme
 
+        // Wake Lock API - Ekranın kapanmasını engelle
+        let wakeLock = null;
+
+        async function requestWakeLock() {
+            try {
+                if ('wakeLock' in navigator) {
+                    wakeLock = await navigator.wakeLock.request('screen');
+                    console.log('🔒 Wake Lock aktif - Ekran açık kalacak');
+
+                    wakeLock.addEventListener('release', () => {
+                        console.log('🔓 Wake Lock serbest bırakıldı');
+                    });
+                } else {
+                    console.log('⚠️ Wake Lock API desteklenmiyor');
+                }
+            } catch (err) {
+                console.error('❌ Wake Lock hatası:', err);
+            }
+        }
+
+        // Sayfa görünür olduğunda Wake Lock'u yeniden aktifleştir
+        document.addEventListener('visibilitychange', async () => {
+            if (wakeLock !== null && document.visibilityState === 'visible') {
+                await requestWakeLock();
+            }
+        });
+
+        // Sayfa yüklendiğinde Wake Lock'u aktifleştir
+        requestWakeLock();
+
         // Socket.IO bağlantısı
         const socket = io();
         let isConnected = false;
