@@ -165,6 +165,87 @@ class BabyMonitorApp:
                 return jsonify({'status': 'success', 'message': 'Sistem kapatılıyor...'})
             except Exception as e:
                 return jsonify({'status': 'error', 'message': str(e)}), 500
+
+        @self.app.route('/api/wifi/networks', methods=['GET'])
+        def get_wifi_networks():
+            """Kayıtlı WiFi ağlarını listele"""
+            import subprocess
+            try:
+                # Kayıtlı bağlantıları listele
+                result = subprocess.run(
+                    ['nmcli', '-t', '-f', 'NAME,TYPE,DEVICE,STATE', 'connection', 'show'],
+                    capture_output=True,
+                    text=True,
+                    timeout=5
+                )
+
+                networks = []
+                for line in result.stdout.strip().split('\n'):
+                    if not line:
+                        continue
+                    parts = line.split(':')
+                    if len(parts) >= 4 and parts[1] == '802-11-wireless':
+                        name = parts[0]
+                        device = parts[2]
+                        is_active = parts[3] == 'activated'
+
+                        # Aktif ağ için sinyal gücü al
+                        signal_strength = 0
+                        if is_active and device:
+                            try:
+                                signal_result = subprocess.run(
+                                    ['nmcli', '-t', '-f', 'SIGNAL', 'device', 'wifi', 'list', 'ifname', device, '--rescan', 'no'],
+                                    capture_output=True,
+                                    text=True,
+                                    timeout=3
+                                )
+                                # İlk satırı al (aktif ağ)
+                                if signal_result.stdout.strip():
+                                    first_line = signal_result.stdout.strip().split('\n')[0]
+                                    try:
+                                        signal_strength = int(first_line)
+                                    except:
+                                        pass
+                            except:
+                                pass
+
+                        networks.append({
+                            'name': name,
+                            'active': is_active,
+                            'signal': signal_strength
+                        })
+
+                return jsonify({'status': 'success', 'networks': networks})
+            except Exception as e:
+                return jsonify({'status': 'error', 'message': str(e)}), 500
+
+        @self.app.route('/api/wifi/connect', methods=['POST'])
+        def connect_wifi():
+            """Seçilen WiFi ağına bağlan"""
+            import subprocess
+            data = request.get_json()
+            network_name = data.get('network_name')
+
+            if not network_name:
+                return jsonify({'status': 'error', 'message': 'network_name required'}), 400
+
+            try:
+                # Ağa bağlan
+                result = subprocess.run(
+                    ['nmcli', 'connection', 'up', network_name],
+                    capture_output=True,
+                    text=True,
+                    timeout=30
+                )
+
+                if result.returncode == 0:
+                    return jsonify({'status': 'success', 'message': f'{network_name} ağına bağlanıldı'})
+                else:
+                    return jsonify({'status': 'error', 'message': result.stderr}), 500
+            except subprocess.TimeoutExpired:
+                return jsonify({'status': 'error', 'message': 'Bağlantı zaman aşımına uğradı'}), 500
+            except Exception as e:
+                return jsonify({'status': 'error', 'message': str(e)}), 500
     
     def setup_socketio(self):
         @self.socketio.on('connect')

@@ -300,8 +300,35 @@
                         <span id="volumeLabel" style="display: block; text-align: center; margin-top: 5px;">50%</span>
                     </div>
                 </div>
+
+                <div style="margin-top: 20px; padding: 15px; background: white; border-radius: 10px; box-shadow: 0 5px 15px rgba(0,0,0,0.1);">
+                    <h3 style="margin-top: 0; color: #667eea;">📶 WiFi Ağları</h3>
+
+                    <div id="wifiStatusDiv" style="padding: 10px; background: #e8f5e9; border-radius: 5px; margin-bottom: 10px; display: none;">
+                        <div style="font-weight: bold; color: #2e7d32; margin-bottom: 5px;">
+                            <span>🟢 Bağlı:</span>
+                            <span id="activeNetwork">--</span>
+                        </div>
+                        <div style="color: #558b2f;">
+                            <span>📡 Sinyal:</span>
+                            <span id="signalStrength">--</span>
+                        </div>
+                    </div>
+
+                    <div style="margin-bottom: 10px;">
+                        <button onclick="refreshWifiNetworks()" style="width: 100%; padding: 10px; background: linear-gradient(135deg, #667eea, #764ba2); color: white; border: none; border-radius: 5px; font-weight: bold; cursor: pointer;">
+                            🔄 Ağları Yenile
+                        </button>
+                    </div>
+
+                    <div id="wifiNetworksList" style="max-height: 250px; overflow-y: auto;">
+                        <div style="text-align: center; color: #999; padding: 20px;">
+                            Ağları yüklemek için butona tıklayın
+                        </div>
+                    </div>
+                </div>
             </div>
-            
+
             <div class="status-panel">
                 <h2>📊 Durum Bilgileri</h2>
                 
@@ -664,6 +691,122 @@
                 });
             }
         }
+
+        // WiFi ağlarını yenile ve listele
+        function refreshWifiNetworks() {
+            const listDiv = document.getElementById('wifiNetworksList');
+            listDiv.innerHTML = '<div style="text-align: center; color: #667eea; padding: 20px;"><div>🔄 Yükleniyor...</div></div>';
+
+            fetch('/api/wifi/networks')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        displayWifiNetworks(data.networks);
+                    } else {
+                        listDiv.innerHTML = '<div style="text-align: center; color: #f44336; padding: 20px;">❌ Hata: ' + data.message + '</div>';
+                    }
+                })
+                .catch(error => {
+                    console.error('WiFi ağları yüklenirken hata:', error);
+                    listDiv.innerHTML = '<div style="text-align: center; color: #f44336; padding: 20px;">❌ Ağlar yüklenemedi</div>';
+                });
+        }
+
+        // WiFi ağlarını görüntüle
+        function displayWifiNetworks(networks) {
+            const listDiv = document.getElementById('wifiNetworksList');
+            const statusDiv = document.getElementById('wifiStatusDiv');
+
+            if (networks.length === 0) {
+                listDiv.innerHTML = '<div style="text-align: center; color: #999; padding: 20px;">Kayıtlı ağ bulunamadı</div>';
+                statusDiv.style.display = 'none';
+                return;
+            }
+
+            // Aktif ağı bul ve göster
+            const activeNetwork = networks.find(n => n.active);
+            if (activeNetwork) {
+                statusDiv.style.display = 'block';
+                document.getElementById('activeNetwork').textContent = activeNetwork.name;
+                document.getElementById('signalStrength').textContent = getSignalIcon(activeNetwork.signal) + ' ' + activeNetwork.signal + '%';
+            } else {
+                statusDiv.style.display = 'none';
+            }
+
+            // Ağları listele
+            let html = '';
+            networks.forEach(network => {
+                const isActive = network.active;
+                const bgColor = isActive ? '#e8f5e9' : '#f5f5f5';
+                const borderColor = isActive ? '#4caf50' : '#ddd';
+                const textColor = isActive ? '#2e7d32' : '#333';
+
+                html += `
+                    <div style="padding: 12px; margin-bottom: 8px; background: ${bgColor}; border: 2px solid ${borderColor}; border-radius: 8px; display: flex; justify-content: space-between; align-items: center;">
+                        <div style="flex: 1;">
+                            <div style="font-weight: bold; color: ${textColor}; margin-bottom: 3px;">
+                                ${isActive ? '🟢' : '⚪'} ${network.name}
+                            </div>
+                            ${network.signal > 0 ? `<div style="font-size: 0.9em; color: #666;">${getSignalIcon(network.signal)} ${network.signal}%</div>` : ''}
+                        </div>
+                        <div>
+                            ${isActive ?
+                                '<span style="color: #4caf50; font-weight: bold; padding: 8px 15px; background: white; border-radius: 5px; font-size: 0.85em;">✓ Bağlı</span>' :
+                                `<button onclick="connectToWifi('${network.name}')" style="padding: 8px 15px; background: linear-gradient(135deg, #667eea, #764ba2); color: white; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; font-size: 0.85em;">Bağlan</button>`
+                            }
+                        </div>
+                    </div>
+                `;
+            });
+
+            listDiv.innerHTML = html;
+        }
+
+        // Sinyal gücü ikonu
+        function getSignalIcon(signal) {
+            if (signal >= 75) return '📶';
+            if (signal >= 50) return '📶';
+            if (signal >= 25) return '📶';
+            return '📶';
+        }
+
+        // WiFi ağına bağlan
+        function connectToWifi(networkName) {
+            if (!confirm(`${networkName} ağına bağlanmak istediğinize emin misiniz?`)) {
+                return;
+            }
+
+            // Buton durumunu güncelle
+            const listDiv = document.getElementById('wifiNetworksList');
+            const originalHtml = listDiv.innerHTML;
+
+            fetch('/api/wifi/connect', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ network_name: networkName })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    alert('✅ Bağlantı başarılı: ' + data.message);
+                    // Ağları yenile
+                    setTimeout(() => refreshWifiNetworks(), 2000);
+                } else {
+                    alert('❌ Bağlantı hatası: ' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('WiFi bağlantı hatası:', error);
+                alert('❌ Bağlantı isteği gönderilemedi');
+            });
+        }
+
+        // Sayfa yüklendiğinde WiFi ağlarını otomatik yükle
+        window.addEventListener('load', function() {
+            refreshWifiNetworks();
+        });
 
         // Sakinleştirici sesler için (Raspberry Pi üzerinde çalıyor)
         let currentSound = null;
