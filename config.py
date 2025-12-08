@@ -16,10 +16,10 @@ class Config:
 
     # Audio settings
     AUDIO_FORMAT = pyaudio.paInt16  # 16-bit audio
-    AUDIO_CHANNELS = 1  # Mono
-    AUDIO_RATE = 16000  # 16kHz sample rate (good for voice)
+    AUDIO_CHANNELS = 2  # Stereo (USB mikrofon 2 kanal destekliyor)
+    AUDIO_RATE = 48000  # 48kHz sample rate (USB mikrofon için)
     AUDIO_CHUNK = 1024  # Frames per buffer
-    AUDIO_DEVICE_INDEX = None  # None = default device (USB mikrofon için index numarasını buraya yaz)
+    AUDIO_DEVICE_INDEX = None  # None = default device (USB mikrofon otomatik bulunuyor)
 
     # Hareket tespiti
     MOTION_THRESHOLD = 0.5  # %0.5 hareket threshold - El ve kafa hareketleri için hassas
