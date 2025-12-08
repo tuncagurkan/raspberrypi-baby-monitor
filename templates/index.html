@@ -280,6 +280,22 @@
                 </div>
 
                 <div style="margin-top: 20px; padding: 15px; background: white; border-radius: 10px; box-shadow: 0 5px 15px rgba(0,0,0,0.1);">
+                    <h3 style="margin-top: 0; color: #667eea;">🎤 Mikrofon (Bebek Sesi)</h3>
+                    <audio id="audioStream" controls style="width: 100%; margin-top: 10px;">
+                        <source src="/audio_feed" type="audio/wav">
+                        Tarayıcınız audio öğesini desteklemiyor.
+                    </audio>
+                    <div style="margin-top: 15px;">
+                        <label style="display: block; margin-bottom: 5px; font-weight: bold;">🔊 Mikrofon Ses Seviyesi:</label>
+                        <input type="range" id="micVolumeSlider" min="0" max="100" value="100" style="width: 100%;" oninput="updateMicVolume(this.value)">
+                        <span id="micVolumeLabel" style="display: block; text-align: center; margin-top: 5px; color: #667eea; font-weight: bold;">100%</span>
+                    </div>
+                    <div style="margin-top: 10px; text-align: center; font-size: 0.9em; color: #666;">
+                        🔊 Mikrofon sesini dinlemek için play butonuna basın
+                    </div>
+                </div>
+
+                <div style="margin-top: 20px; padding: 15px; background: white; border-radius: 10px; box-shadow: 0 5px 15px rgba(0,0,0,0.1);">
                     <h3 style="margin-top: 0; color: #667eea;">🎵 Sakinleştirici Sesler</h3>
                     <select id="soundSelect" style="width: 100%; padding: 10px; border-radius: 5px; border: 2px solid #667eea; margin-bottom: 10px;">
                         <option value="">Ses Seçin...</option>
@@ -690,6 +706,21 @@
                     alert('Sistem kapatma isteği gönderilemedi');
                 });
             }
+        }
+
+        // Mikrofon ses seviyesini ayarla
+        function updateMicVolume(volume) {
+            const audioStream = document.getElementById('audioStream');
+            const volumeLabel = document.getElementById('micVolumeLabel');
+
+            // Volume değerini 0-1 aralığına çevir
+            const volumeValue = volume / 100;
+            audioStream.volume = volumeValue;
+
+            // Label'ı güncelle
+            volumeLabel.textContent = volume + '%';
+
+            console.log('🎤 Mikrofon ses seviyesi:', volume + '%');
         }
 
         // WiFi ağlarını yenile ve listele

@@ -60,10 +60,10 @@ class BabyMonitorApp:
 
         @self.app.route('/audio_feed')
         def audio_feed():
-            print("Audio feed requested")
+            print("🎤 Audio feed requested")
             return Response(
                 self.audio.generate_audio(),
-                mimetype='audio/x-raw'
+                mimetype='audio/wav'
             )
         
         @self.app.route('/api/status')
@@ -171,6 +171,8 @@ class BabyMonitorApp:
             """Kayıtlı WiFi ağlarını listele"""
             import subprocess
             try:
+                print("\n📶 WiFi ağları sorgulanıyor...")
+
                 # Kayıtlı bağlantıları listele
                 result = subprocess.run(
                     ['nmcli', '-t', '-f', 'NAME,TYPE,DEVICE,STATE', 'connection', 'show'],
@@ -179,15 +181,24 @@ class BabyMonitorApp:
                     timeout=5
                 )
 
+                print(f"🔍 nmcli return code: {result.returncode}")
+                print(f"📋 nmcli stdout:\n{result.stdout}")
+                print(f"❌ nmcli stderr:\n{result.stderr}")
+
                 networks = []
                 for line in result.stdout.strip().split('\n'):
                     if not line:
                         continue
+                    print(f"  Processing line: {line}")
                     parts = line.split(':')
+                    print(f"  Parts: {parts}")
+
                     if len(parts) >= 4 and parts[1] == '802-11-wireless':
                         name = parts[0]
                         device = parts[2]
                         is_active = parts[3] == 'activated'
+
+                        print(f"  ✅ Found WiFi network: {name} (active: {is_active})")
 
                         # Aktif ağ için sinyal gücü al
                         signal_strength = 0
@@ -204,10 +215,11 @@ class BabyMonitorApp:
                                     first_line = signal_result.stdout.strip().split('\n')[0]
                                     try:
                                         signal_strength = int(first_line)
+                                        print(f"  📡 Signal strength: {signal_strength}%")
                                     except:
-                                        pass
-                            except:
-                                pass
+                                        print(f"  ⚠️ Could not parse signal: {first_line}")
+                            except Exception as sig_err:
+                                print(f"  ⚠️ Signal check error: {sig_err}")
 
                         networks.append({
                             'name': name,
@@ -215,8 +227,10 @@ class BabyMonitorApp:
                             'signal': signal_strength
                         })
 
+                print(f"\n✅ Toplam {len(networks)} WiFi ağı bulundu\n")
                 return jsonify({'status': 'success', 'networks': networks})
             except Exception as e:
+                print(f"❌ WiFi networks error: {e}")
                 return jsonify({'status': 'error', 'message': str(e)}), 500
 
         @self.app.route('/api/wifi/connect', methods=['POST'])
