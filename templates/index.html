@@ -846,7 +846,7 @@
                     // Analyser düğümü oluştur
                     analyser = audioContext.createAnalyser();
                     analyser.fftSize = 256;
-                    analyser.smoothingTimeConstant = 0.8;
+                    analyser.smoothingTimeConstant = 0.9; // Daha fazla yumuşatma (0.8 -> 0.9)
 
                     // Audio source oluştur
                     const source = audioContext.createMediaElementSource(audioElement);
@@ -911,8 +911,16 @@
             }
             const average = sum / bufferLength;
 
-            // Yüzdeye çevir (0-100)
-            const percentage = Math.min(100, Math.round((average / 255) * 100 * 2)); // x2 çarpan daha belirgin gösterim için
+            // Yüzdeye çevir (0-100) - Daha az hassas
+            let percentage = (average / 255) * 100 * 0.8; // x0.8 çarpan (daha az hassas)
+
+            // Gürültü filtreleme - 5'in altındaki değerleri 0 yap
+            if (percentage < 5) {
+                percentage = 0;
+            }
+
+            // 100'ü aşmasın
+            percentage = Math.min(100, Math.round(percentage));
 
             // Progress bar ve label'ı güncelle
             const levelBar = document.getElementById('audioLevelBar');
@@ -923,9 +931,9 @@
                 levelLabel.textContent = percentage + '%';
 
                 // Renk değiştir (seviyeye göre)
-                if (percentage > 70) {
+                if (percentage > 60) {
                     levelBar.style.background = 'linear-gradient(90deg, #f59e0b, #dc2626)'; // Turuncu-kırmızı
-                } else if (percentage > 40) {
+                } else if (percentage > 30) {
                     levelBar.style.background = 'linear-gradient(90deg, #10b981, #f59e0b)'; // Yeşil-turuncu
                 } else {
                     levelBar.style.background = 'linear-gradient(90deg, #4ade80, #22c55e)'; // Yeşil
