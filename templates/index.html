@@ -281,17 +281,32 @@
 
                 <div style="margin-top: 20px; padding: 15px; background: white; border-radius: 10px; box-shadow: 0 5px 15px rgba(0,0,0,0.1);">
                     <h3 style="margin-top: 0; color: #667eea;">🎤 Mikrofon (Bebek Sesi)</h3>
-                    <audio id="audioStream" controls style="width: 100%; margin-top: 10px;">
+
+                    <!-- Gizli audio stream - otomatik çalışır -->
+                    <audio id="audioStream" autoplay style="display: none;">
                         <source src="/audio_feed" type="audio/wav">
-                        Tarayıcınız audio öğesini desteklemiyor.
                     </audio>
+
+                    <!-- Ses seviyesi göstergesi -->
+                    <div style="margin-bottom: 15px; padding: 10px; background: #f0f4ff; border-radius: 8px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                            <span style="font-weight: bold; color: #667eea;">📊 Ses Seviyesi:</span>
+                            <span id="audioLevelLabel" style="font-weight: bold; color: #667eea; font-size: 1.1em;">0%</span>
+                        </div>
+                        <div style="width: 100%; height: 20px; background: #e0e7ff; border-radius: 10px; overflow: hidden; position: relative;">
+                            <div id="audioLevelBar" style="height: 100%; width: 0%; background: linear-gradient(90deg, #4ade80, #22c55e); transition: width 0.1s ease;"></div>
+                        </div>
+                    </div>
+
+                    <!-- Volume kontrol -->
                     <div style="margin-top: 15px;">
                         <label style="display: block; margin-bottom: 5px; font-weight: bold;">🔊 Mikrofon Ses Seviyesi:</label>
                         <input type="range" id="micVolumeSlider" min="0" max="100" value="100" style="width: 100%;" oninput="updateMicVolume(this.value)">
                         <span id="micVolumeLabel" style="display: block; text-align: center; margin-top: 5px; color: #667eea; font-weight: bold;">100%</span>
                     </div>
+
                     <div style="margin-top: 10px; text-align: center; font-size: 0.9em; color: #666;">
-                        🔊 Mikrofon sesini dinlemek için play butonuna basın
+                        <span id="micStatus" style="color: #22c55e; font-weight: bold;">🟢 Mikrofon aktif - Canlı dinleniyor</span>
                     </div>
                 </div>
 
@@ -723,6 +738,153 @@
             console.log('🎤 Mikrofon ses seviyesi:', volume + '%');
         }
 
+        // Mikrofon ses seviyesi göstergesi için Web Audio API
+        let audioContext = null;
+        let analyser = null;
+        let animationId = null;
+
+        function initializeAudioLevelMonitor() {
+            const audioElement = document.getElementById('audioStream');
+
+            // Debug: Audio element durumunu izle
+            console.log('🎤 Mikrofon stream başlatılıyor...');
+            console.log('📍 Audio source URL:', audioElement.querySelector('source').src);
+
+            // Hata durumları
+            audioElement.addEventListener('error', function(e) {
+                console.error('❌ Audio element hatası:', e);
+                console.error('❌ Error details:', audioElement.error);
+            });
+
+            audioElement.querySelector('source').addEventListener('error', function(e) {
+                console.error('❌ Audio source hatası:', e);
+            });
+
+            // Yükleme durumları
+            audioElement.addEventListener('loadstart', function() {
+                console.log('🔄 Audio yükleniyor...');
+            });
+
+            audioElement.addEventListener('loadeddata', function() {
+                console.log('✅ Audio data yüklendi');
+            });
+
+            audioElement.addEventListener('canplay', function() {
+                console.log('✅ Audio çalmaya hazır');
+            });
+
+            audioElement.addEventListener('play', function() {
+                console.log('▶️ Audio çalmaya başladı');
+            });
+
+            audioElement.addEventListener('playing', function() {
+                console.log('🎵 Audio şu an çalıyor');
+            });
+
+            audioElement.addEventListener('waiting', function() {
+                console.log('⏳ Audio bekliyor (buffering)...');
+            });
+
+            audioElement.addEventListener('stalled', function() {
+                console.log('⚠️ Audio stream durdu (stalled)');
+            });
+
+            // Audio element yüklenene kadar bekle
+            audioElement.addEventListener('loadedmetadata', function() {
+                try {
+                    console.log('📊 Audio metadata yüklendi');
+
+                    // AudioContext oluştur
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    console.log('🎚️ AudioContext durumu:', audioContext.state);
+
+                    // Analyser düğümü oluştur
+                    analyser = audioContext.createAnalyser();
+                    analyser.fftSize = 256;
+                    analyser.smoothingTimeConstant = 0.8;
+
+                    // Audio source oluştur
+                    const source = audioContext.createMediaElementSource(audioElement);
+
+                    // Bağlantıları kur: source -> analyser -> destination
+                    source.connect(analyser);
+                    analyser.connect(audioContext.destination);
+
+                    console.log('🎤 Audio level monitor başlatıldı');
+
+                    // Ses seviyesi güncellemeyi başlat
+                    updateAudioLevel();
+                } catch (error) {
+                    console.error('❌ Audio level monitor hatası:', error);
+                }
+            }, { once: true });
+
+            // Audio elementi çalmaya başladığında AudioContext'i resume et
+            audioElement.addEventListener('play', function() {
+                if (audioContext && audioContext.state === 'suspended') {
+                    console.log('🔓 AudioContext resume ediliyor...');
+                    audioContext.resume().then(() => {
+                        console.log('✅ AudioContext aktif:', audioContext.state);
+                    });
+                }
+            });
+
+            // Sayfa etkileşimi sonrası audio'yu manuel başlatmayı dene
+            document.addEventListener('click', function tryPlayAudio() {
+                if (audioElement.paused) {
+                    console.log('🖱️ Kullanıcı tıkladı, audio başlatılıyor...');
+                    audioElement.play().then(() => {
+                        console.log('✅ Audio manuel başlatıldı');
+                        document.removeEventListener('click', tryPlayAudio);
+                    }).catch(err => {
+                        console.error('❌ Audio başlatılamadı:', err);
+                    });
+                }
+            }, { once: true });
+        }
+
+        function updateAudioLevel() {
+            if (!analyser) {
+                return;
+            }
+
+            // Frekans verilerini al
+            const bufferLength = analyser.frequencyBinCount;
+            const dataArray = new Uint8Array(bufferLength);
+            analyser.getByteFrequencyData(dataArray);
+
+            // Ortalama ses seviyesini hesapla
+            let sum = 0;
+            for (let i = 0; i < bufferLength; i++) {
+                sum += dataArray[i];
+            }
+            const average = sum / bufferLength;
+
+            // Yüzdeye çevir (0-100)
+            const percentage = Math.min(100, Math.round((average / 255) * 100 * 2)); // x2 çarpan daha belirgin gösterim için
+
+            // Progress bar ve label'ı güncelle
+            const levelBar = document.getElementById('audioLevelBar');
+            const levelLabel = document.getElementById('audioLevelLabel');
+
+            if (levelBar && levelLabel) {
+                levelBar.style.width = percentage + '%';
+                levelLabel.textContent = percentage + '%';
+
+                // Renk değiştir (seviyeye göre)
+                if (percentage > 70) {
+                    levelBar.style.background = 'linear-gradient(90deg, #f59e0b, #dc2626)'; // Turuncu-kırmızı
+                } else if (percentage > 40) {
+                    levelBar.style.background = 'linear-gradient(90deg, #10b981, #f59e0b)'; // Yeşil-turuncu
+                } else {
+                    levelBar.style.background = 'linear-gradient(90deg, #4ade80, #22c55e)'; // Yeşil
+                }
+            }
+
+            // Animasyonu devam ettir
+            animationId = requestAnimationFrame(updateAudioLevel);
+        }
+
         // WiFi ağlarını yenile ve listele
         function refreshWifiNetworks() {
             const listDiv = document.getElementById('wifiNetworksList');
@@ -944,6 +1106,9 @@
                 .then(data => {
                     updateNightVisionButton(data.night_vision_enabled);
                 });
+
+            // Mikrofon ses seviyesi monitörünü başlat
+            initializeAudioLevelMonitor();
         });
         
         // Video stream hata durumu
