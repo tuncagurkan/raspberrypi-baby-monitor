@@ -282,8 +282,8 @@
                 <div style="margin-top: 20px; padding: 15px; background: white; border-radius: 10px; box-shadow: 0 5px 15px rgba(0,0,0,0.1);">
                     <h3 style="margin-top: 0; color: #667eea;">🎤 Mikrofon (Bebek Sesi)</h3>
 
-                    <!-- Gizli audio stream - otomatik çalışır -->
-                    <audio id="audioStream" autoplay style="display: none;">
+                    <!-- Gizli audio stream - manuel başlatılacak -->
+                    <audio id="audioStream" style="display: none;">
                         <source src="/audio_feed" type="audio/wav">
                     </audio>
 
@@ -754,15 +754,34 @@
             audioElement.addEventListener('error', function(e) {
                 console.error('❌ Audio element hatası:', e);
                 console.error('❌ Error details:', audioElement.error);
+
+                // Status'u güncelle
+                const micStatus = document.getElementById('micStatus');
+                if (micStatus) {
+                    micStatus.textContent = '🔴 Mikrofon bağlantısı hatası';
+                    micStatus.style.color = '#dc2626';
+                }
             });
 
             audioElement.querySelector('source').addEventListener('error', function(e) {
                 console.error('❌ Audio source hatası:', e);
+
+                // Status'u güncelle
+                const micStatus = document.getElementById('micStatus');
+                if (micStatus) {
+                    micStatus.textContent = '🔴 Mikrofon stream hatası';
+                    micStatus.style.color = '#dc2626';
+                }
             });
 
             // Yükleme durumları
             audioElement.addEventListener('loadstart', function() {
                 console.log('🔄 Audio yükleniyor...');
+                const micStatus = document.getElementById('micStatus');
+                if (micStatus) {
+                    micStatus.textContent = '🔵 Mikrofon bağlanıyor...';
+                    micStatus.style.color = '#3b82f6';
+                }
             });
 
             audioElement.addEventListener('loadeddata', function() {
@@ -770,8 +789,18 @@
             });
 
             audioElement.addEventListener('canplay', function() {
-                console.log('✅ Audio çalmaya hazır');
-            });
+                console.log('✅ Audio çalmaya hazır, başlatılıyor...');
+
+                // Stream hazır, şimdi çalmayı başlat
+                audioElement.play()
+                    .then(() => {
+                        console.log('✅ Audio otomatik başlatıldı');
+                    })
+                    .catch(err => {
+                        console.error('❌ Audio otomatik başlatılamadı:', err.name, err.message);
+                        console.log('ℹ️  Sayfaya tıklayarak manuel başlatabilirsiniz');
+                    });
+            }, { once: true });
 
             audioElement.addEventListener('play', function() {
                 console.log('▶️ Audio çalmaya başladı');
@@ -779,14 +808,30 @@
 
             audioElement.addEventListener('playing', function() {
                 console.log('🎵 Audio şu an çalıyor');
+                // Status'u güncelle
+                const micStatus = document.getElementById('micStatus');
+                if (micStatus) {
+                    micStatus.textContent = '🟢 Mikrofon aktif - Canlı dinleniyor';
+                    micStatus.style.color = '#22c55e';
+                }
             });
 
             audioElement.addEventListener('waiting', function() {
                 console.log('⏳ Audio bekliyor (buffering)...');
+                const micStatus = document.getElementById('micStatus');
+                if (micStatus) {
+                    micStatus.textContent = '🟡 Mikrofon buffering...';
+                    micStatus.style.color = '#f59e0b';
+                }
             });
 
             audioElement.addEventListener('stalled', function() {
                 console.log('⚠️ Audio stream durdu (stalled)');
+                const micStatus = document.getElementById('micStatus');
+                if (micStatus) {
+                    micStatus.textContent = '🟠 Mikrofon stream yavaş';
+                    micStatus.style.color = '#f59e0b';
+                }
             });
 
             // Audio element yüklenene kadar bekle
@@ -829,18 +874,24 @@
                 }
             });
 
-            // Sayfa etkileşimi sonrası audio'yu manuel başlatmayı dene
-            document.addEventListener('click', function tryPlayAudio() {
+            // Sayfa etkileşimi sonrası audio'yu manuel başlatmayı dene (fallback)
+            const tryPlayAudio = function() {
                 if (audioElement.paused) {
-                    console.log('🖱️ Kullanıcı tıkladı, audio başlatılıyor...');
-                    audioElement.play().then(() => {
-                        console.log('✅ Audio manuel başlatıldı');
-                        document.removeEventListener('click', tryPlayAudio);
-                    }).catch(err => {
-                        console.error('❌ Audio başlatılamadı:', err);
-                    });
+                    console.log('🖱️ Kullanıcı etkileşimi, audio başlatılıyor...');
+                    audioElement.play()
+                        .then(() => {
+                            console.log('✅ Audio manuel başlatıldı');
+                            document.removeEventListener('click', tryPlayAudio);
+                            document.removeEventListener('touchstart', tryPlayAudio);
+                        })
+                        .catch(err => {
+                            console.error('❌ Audio başlatılamadı:', err.name, err.message);
+                        });
                 }
-            }, { once: true });
+            };
+
+            document.addEventListener('click', tryPlayAudio);
+            document.addEventListener('touchstart', tryPlayAudio);
         }
 
         function updateAudioLevel() {
