@@ -3,6 +3,8 @@ import threading
 import queue
 import time
 import logging
+import audioop
+import numpy as np
 from datetime import datetime
 
 class AudioStream:
@@ -11,7 +13,7 @@ class AudioStream:
         self.audio = None
         self.stream = None
         self.is_streaming = False
-        self.audio_queue = queue.Queue(maxsize=100)
+        self.audio_queue = queue.Queue(maxsize=30)  # Küçült: 100->30 (daha az latency)
 
         self.initialize_audio()
         self.start_streaming()
@@ -81,9 +83,11 @@ class AudioStream:
                 audio_data = self.stream.read(self.config.AUDIO_CHUNK, exception_on_overflow=False)
                 chunk_count += 1
 
+                # Audio processing: Gürültü filtreleme ve normalizasyon
+                audio_data = self._process_audio(audio_data)
+
                 # Debug: Her 100 chunk'ta bir bilgi ver
                 if chunk_count % 100 == 0:
-                    import audioop
                     rms = audioop.rms(audio_data, 2)
                     print(f"🎤 Audio chunk #{chunk_count}, RMS level: {rms}, Queue size: {self.audio_queue.qsize()}")
 
@@ -102,6 +106,43 @@ class AudioStream:
                 print(f"⚠️  Audio read error: {e}")
                 time.sleep(0.1)
 
+    def _process_audio(self, audio_data):
+        """
+        Audio işleme: Gürültü filtreleme ve normalizasyon
+        Cızırtıyı azaltmak için
+        """
+        try:
+            # 1. Gürültü Kapısı (Noise Gate)
+            # Düşük seviyeli arka plan gürültüsünü kes
+            if hasattr(self.config, 'AUDIO_NOISE_GATE') and self.config.AUDIO_NOISE_GATE > 0:
+                rms = audioop.rms(audio_data, 2)  # 2 = 16-bit
+                if rms < self.config.AUDIO_NOISE_GATE:
+                    # Sessizlik döndür (gürültü seviyesinin altında)
+                    return b'\x00' * len(audio_data)
+
+            # 2. Normalizasyon (Clipping'i önle)
+            # Sesi normalize et, aşırı yüksek sesleri düşür
+            if hasattr(self.config, 'AUDIO_NORMALIZE') and self.config.AUDIO_NORMALIZE:
+                # Max peak değerini bul
+                max_sample = audioop.max(audio_data, 2)
+
+                # Eğer max değer 32767'nin %80'inden büyükse (clipping riski)
+                if max_sample > 26214:  # 32767 * 0.8
+                    # Normalize et (azalt)
+                    factor = 26214 / max_sample
+                    audio_data = audioop.mul(audio_data, 2, factor)
+
+            # 3. Yumuşatma (Smoothing) - Ani değişimleri yumuşat
+            # audioop ile basit bir smoothing (isteğe bağlı)
+            # audio_data = audioop.lin2lin(audio_data, 2, 2)  # Basit format dönüşümü
+
+            return audio_data
+
+        except Exception as e:
+            # Hata durumunda orijinal data'yı döndür
+            print(f"⚠️ Audio processing error: {e}")
+            return audio_data
+
     def generate_audio(self):
         """Generator for audio streaming to Flask"""
         import struct
@@ -119,7 +160,8 @@ class AudioStream:
                 yield audio_data
             except queue.Empty:
                 # If no data available, yield silence
-                silence = b'\x00' * self.config.AUDIO_CHUNK * self.config.AUDIO_CHANNELS * 2
+                # 2 = bytes per sample (16-bit = 2 bytes)
+                silence = b'\x00' * (self.config.AUDIO_CHUNK * self.config.AUDIO_CHANNELS * 2)
                 yield silence
 
     def _create_wav_header(self):
