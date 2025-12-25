@@ -14,16 +14,16 @@ class Config:
     CAMERA_HEIGHT = 240
     CAMERA_FPS = 30
 
-    # Audio settings - Optimized for better quality
+    # Audio settings - USB mikrofon için optimize
     AUDIO_FORMAT = pyaudio.paInt16  # 16-bit audio
-    AUDIO_CHANNELS = 1  # Mono (daha az gürültü, daha stabil)
-    AUDIO_RATE = 44100  # 44.1kHz sample rate (daha evrensel ve stabil)
-    AUDIO_CHUNK = 2048  # Frames per buffer (daha büyük buffer = daha az cızırtı)
+    AUDIO_CHANNELS = 2  # Stereo (USB mikrofon 2 kanal destekliyor)
+    AUDIO_RATE = 48000  # 48kHz sample rate (USB mikrofon için)
+    AUDIO_CHUNK = 1536  # Frames per buffer (orta boyut - performans/kalite dengesi)
     AUDIO_DEVICE_INDEX = None  # None = default device (USB mikrofon otomatik bulunuyor)
 
-    # Audio processing settings
-    AUDIO_NOISE_GATE = 100  # Gürültü eşiği (0-32767, altındaki sesler kesilir)
-    AUDIO_NORMALIZE = True  # Ses normalizasyonu (cızırtıyı azaltır)
+    # Audio processing settings - Hafif filtreleme
+    AUDIO_NOISE_GATE = 0  # Gürültü eşiği KAPALI (bebek sesini kesmesin)
+    AUDIO_NORMALIZE = False  # Normalizasyon KAPALI (doğal ses)
 
     # Hareket tespiti
     MOTION_THRESHOLD = 0.5  # %0.5 hareket threshold - El ve kafa hareketleri için hassas
