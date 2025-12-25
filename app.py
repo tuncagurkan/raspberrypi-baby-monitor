@@ -124,7 +124,10 @@ class BabyMonitorApp:
         @self.app.route('/api/nightvision/manual', methods=['POST'])
         def set_manual_mode():
             """Manuel moda geç"""
+            print("🔧 API /api/nightvision/manual çağrıldı")
+            print(f"   NIGHT_VISION_AUTO: {self.config.NIGHT_VISION_AUTO} -> False")
             self.config.NIGHT_VISION_AUTO = False
+            print("   ✅ Manuel mod aktif")
             return jsonify({
                 'status': 'success',
                 'current_mode': self.camera.ir_control.get_current_mode()
@@ -133,19 +136,39 @@ class BabyMonitorApp:
         @self.app.route('/api/nightvision/day', methods=['POST'])
         def set_day_mode():
             """Manuel gündüz modu"""
+            print(f"🔧 API /api/nightvision/day çağrıldı")
+            print(f"   NIGHT_VISION_AUTO: {self.config.NIGHT_VISION_AUTO}")
+
             if not self.config.NIGHT_VISION_AUTO:
-                self.camera.ir_control.manual_day_mode()
-                return jsonify({'status': 'success'})
+                print("   ☀️ Gündüz moduna geçiliyor...")
+                try:
+                    self.camera.ir_control.manual_day_mode()
+                    print("   ✅ Gündüz modu başarılı")
+                    return jsonify({'status': 'success'})
+                except Exception as e:
+                    print(f"   ❌ Hata: {e}")
+                    return jsonify({'status': 'error', 'message': str(e)}), 500
             else:
+                print("   ⚠️ Otomatik mod aktif, önce manuel moda geç")
                 return jsonify({'status': 'error', 'message': 'Önce manuel moda geçin'}), 400
 
         @self.app.route('/api/nightvision/night', methods=['POST'])
         def set_night_mode():
             """Manuel gece modu"""
+            print(f"🔧 API /api/nightvision/night çağrıldı")
+            print(f"   NIGHT_VISION_AUTO: {self.config.NIGHT_VISION_AUTO}")
+
             if not self.config.NIGHT_VISION_AUTO:
-                self.camera.ir_control.manual_night_mode()
-                return jsonify({'status': 'success'})
+                print("   🌙 Gece moduna geçiliyor...")
+                try:
+                    self.camera.ir_control.manual_night_mode()
+                    print("   ✅ Gece modu başarılı")
+                    return jsonify({'status': 'success'})
+                except Exception as e:
+                    print(f"   ❌ Hata: {e}")
+                    return jsonify({'status': 'error', 'message': str(e)}), 500
             else:
+                print("   ⚠️ Otomatik mod aktif, önce manuel moda geç")
                 return jsonify({'status': 'error', 'message': 'Önce manuel moda geçin'}), 400
 
         @self.app.route('/api/sound/play', methods=['POST'])

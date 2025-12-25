@@ -52,20 +52,33 @@ class IRControl:
 
     def _set_day_mode(self):
         """Gündüz modu - IR filtre aktif, IR LED kapalı"""
+        print(f"🔧 _set_day_mode çağrıldı (GPIO initialized: {self.gpio_initialized})")
+
         if not self.gpio_initialized:
+            print("⚠️ GPIO başlatılmamış, gündüz modu atlanıyor")
+            # GPIO olmasa bile modu değiştir (test için)
+            self.is_night_mode = False
             return
 
         try:
+            print(f"   📌 GPIO pinleri:")
+            print(f"      IR_CUT_DAY_PIN: {self.config.IR_CUT_DAY_PIN}")
+            print(f"      IR_CUT_NIGHT_PIN: {self.config.IR_CUT_NIGHT_PIN}")
+            print(f"      IR_LED_PIN: {self.config.IR_LED_PIN}")
+
             # IR-CUT motoru gündüz pozisyonuna getir
+            print("   🔄 IR-CUT DAY -> HIGH, NIGHT -> LOW")
             GPIO.output(self.config.IR_CUT_DAY_PIN, GPIO.HIGH)
             GPIO.output(self.config.IR_CUT_NIGHT_PIN, GPIO.LOW)
             time.sleep(0.5)  # Motor hareket süresi
 
             # Motor pinlerini kapat (motor sadece anlık sinyal gerektirir)
+            print("   🔄 Motor pinleri kapatılıyor")
             GPIO.output(self.config.IR_CUT_DAY_PIN, GPIO.LOW)
             GPIO.output(self.config.IR_CUT_NIGHT_PIN, GPIO.LOW)
 
             # IR LED'i kapat
+            print("   💡 IR LED -> LOW (kapalı)")
             GPIO.output(self.config.IR_LED_PIN, GPIO.LOW)
 
             self.is_night_mode = False
@@ -73,23 +86,38 @@ class IRControl:
 
         except Exception as e:
             print(f"❌ Gündüz modu hatası: {e}")
+            import traceback
+            traceback.print_exc()
 
     def _set_night_mode(self):
         """Gece modu - IR filtre kapalı, IR LED açık"""
+        print(f"🔧 _set_night_mode çağrıldı (GPIO initialized: {self.gpio_initialized})")
+
         if not self.gpio_initialized:
+            print("⚠️ GPIO başlatılmamış, gece modu atlanıyor")
+            # GPIO olmasa bile modu değiştir (test için)
+            self.is_night_mode = True
             return
 
         try:
+            print(f"   📌 GPIO pinleri:")
+            print(f"      IR_CUT_DAY_PIN: {self.config.IR_CUT_DAY_PIN}")
+            print(f"      IR_CUT_NIGHT_PIN: {self.config.IR_CUT_NIGHT_PIN}")
+            print(f"      IR_LED_PIN: {self.config.IR_LED_PIN}")
+
             # IR-CUT motoru gece pozisyonuna getir
+            print("   🔄 IR-CUT DAY -> LOW, NIGHT -> HIGH")
             GPIO.output(self.config.IR_CUT_DAY_PIN, GPIO.LOW)
             GPIO.output(self.config.IR_CUT_NIGHT_PIN, GPIO.HIGH)
             time.sleep(0.5)  # Motor hareket süresi
 
             # Motor pinlerini kapat
+            print("   🔄 Motor pinleri kapatılıyor")
             GPIO.output(self.config.IR_CUT_DAY_PIN, GPIO.LOW)
             GPIO.output(self.config.IR_CUT_NIGHT_PIN, GPIO.LOW)
 
             # IR LED'i aç
+            print("   💡 IR LED -> HIGH (açık)")
             GPIO.output(self.config.IR_LED_PIN, GPIO.HIGH)
 
             self.is_night_mode = True
@@ -97,6 +125,8 @@ class IRControl:
 
         except Exception as e:
             print(f"❌ Gece modu hatası: {e}")
+            import traceback
+            traceback.print_exc()
 
     def auto_switch_mode(self, brightness_level):
         """

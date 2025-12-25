@@ -747,34 +747,56 @@
 
         // Gündüz moduna geç (Manuel)
         function setDayMode() {
+            console.log('🔧 setDayMode çağrıldı');
             fetch('/api/nightvision/day', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'}
             })
-            .then(response => response.json())
+            .then(response => {
+                console.log('📡 Response status:', response.status);
+                return response.json();
+            })
             .then(data => {
+                console.log('📦 Response data:', data);
                 if (data.status === 'success') {
                     updateNightVisionUI('manual', 'day');
                     console.log('☀️ Gündüz modu aktif');
+                } else {
+                    console.error('❌ Hata:', data.message);
+                    alert('Hata: ' + data.message);
                 }
             })
-            .catch(error => console.error('Hata:', error));
+            .catch(error => {
+                console.error('❌ Fetch hatası:', error);
+                alert('API isteği başarısız: ' + error);
+            });
         }
 
         // Gece moduna geç (Manuel)
         function setNightMode() {
+            console.log('🔧 setNightMode çağrıldı');
             fetch('/api/nightvision/night', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'}
             })
-            .then(response => response.json())
+            .then(response => {
+                console.log('📡 Response status:', response.status);
+                return response.json();
+            })
             .then(data => {
+                console.log('📦 Response data:', data);
                 if (data.status === 'success') {
                     updateNightVisionUI('manual', 'night');
                     console.log('🌙 Gece modu aktif');
+                } else {
+                    console.error('❌ Hata:', data.message);
+                    alert('Hata: ' + data.message);
                 }
             })
-            .catch(error => console.error('Hata:', error));
+            .catch(error => {
+                console.error('❌ Fetch hatası:', error);
+                alert('API isteği başarısız: ' + error);
+            });
         }
 
         // UI güncelle
