@@ -23,7 +23,7 @@ class Config:
 
     # Audio processing settings - Hafif filtreleme
     AUDIO_NOISE_GATE = 0  # Gürültü eşiği KAPALI (bebek sesini kesmesin)
-    AUDIO_NORMALIZE = False  # Normalizasyon KAPALI (doğal ses)
+    AUDIO_NORMALIZE = True  # Normalizasyon AÇIK (cızırtıyı azaltmak için)
 
     # Hareket tespiti
     MOTION_THRESHOLD = 0.5  # %0.5 hareket threshold - El ve kafa hareketleri için hassas
