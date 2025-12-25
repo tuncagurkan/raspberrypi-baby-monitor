@@ -566,9 +566,10 @@
                 updateMotionButton(data.motion_enabled);
             }
 
-            // Gece görüşü butonu durumu
-            if (data.night_vision_enabled !== undefined) {
-                updateNightVisionButton(data.night_vision_enabled);
+            // Gece görüşü modu durumu
+            if (data.night_vision_auto !== undefined && data.night_vision_mode !== undefined) {
+                const controlMode = data.night_vision_auto ? 'auto' : 'manual';
+                updateNightVisionUI(controlMode, data.night_vision_mode);
             }
             
             // İleride sıcaklık eklenebilir
@@ -1340,13 +1341,6 @@
                 .then(response => response.json())
                 .then(data => {
                     updateMotionButton(data.motion_enabled);
-                });
-
-            // Gece görüşü durumunu al
-            fetch('/api/nightvision/status')
-                .then(response => response.json())
-                .then(data => {
-                    updateNightVisionButton(data.night_vision_enabled);
                 });
 
             // Mikrofon ses seviyesi monitörünü başlat
