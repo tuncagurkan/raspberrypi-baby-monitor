@@ -101,22 +101,52 @@ class BabyMonitorApp:
                 'motion_enabled': self.config.MOTION_DETECTION_ENABLED
             })
 
-        @self.app.route('/api/nightvision/toggle', methods=['POST'])
-        def toggle_night_vision():
-            """Gece görüşünü aç/kapa"""
-            current_state = self.config.NIGHT_VISION_ENABLED
-            self.config.NIGHT_VISION_ENABLED = not current_state
-            return jsonify({
-                'status': 'success',
-                'night_vision_enabled': self.config.NIGHT_VISION_ENABLED
-            })
+        # ==================== IR-CUT Gece Görüşü API ====================
 
         @self.app.route('/api/nightvision/status', methods=['GET'])
         def get_night_vision_status():
             """Gece görüşü durumunu al"""
             return jsonify({
-                'night_vision_enabled': self.config.NIGHT_VISION_ENABLED
+                'status': 'success',
+                'control_mode': 'auto' if self.config.NIGHT_VISION_AUTO else 'manual',
+                'current_mode': self.camera.ir_control.get_current_mode()
             })
+
+        @self.app.route('/api/nightvision/auto', methods=['POST'])
+        def set_auto_mode():
+            """Otomatik moda geç"""
+            self.config.NIGHT_VISION_AUTO = True
+            return jsonify({
+                'status': 'success',
+                'current_mode': self.camera.ir_control.get_current_mode()
+            })
+
+        @self.app.route('/api/nightvision/manual', methods=['POST'])
+        def set_manual_mode():
+            """Manuel moda geç"""
+            self.config.NIGHT_VISION_AUTO = False
+            return jsonify({
+                'status': 'success',
+                'current_mode': self.camera.ir_control.get_current_mode()
+            })
+
+        @self.app.route('/api/nightvision/day', methods=['POST'])
+        def set_day_mode():
+            """Manuel gündüz modu"""
+            if not self.config.NIGHT_VISION_AUTO:
+                self.camera.ir_control.manual_day_mode()
+                return jsonify({'status': 'success'})
+            else:
+                return jsonify({'status': 'error', 'message': 'Önce manuel moda geçin'}), 400
+
+        @self.app.route('/api/nightvision/night', methods=['POST'])
+        def set_night_mode():
+            """Manuel gece modu"""
+            if not self.config.NIGHT_VISION_AUTO:
+                self.camera.ir_control.manual_night_mode()
+                return jsonify({'status': 'success'})
+            else:
+                return jsonify({'status': 'error', 'message': 'Önce manuel moda geçin'}), 400
 
         @self.app.route('/api/sound/play', methods=['POST'])
         def play_sound():
@@ -301,7 +331,8 @@ class BabyMonitorApp:
             'audio_active': self.audio.is_active(),
             'motion_detected': self.camera.is_motion_detected(),
             'motion_enabled': self.config.MOTION_DETECTION_ENABLED,
-            'night_vision_enabled': self.config.NIGHT_VISION_ENABLED,
+            'night_vision_auto': self.config.NIGHT_VISION_AUTO,
+            'night_vision_mode': self.camera.ir_control.get_current_mode(),
             'timestamp': datetime.now().strftime('%H:%M:%S')
         }
 

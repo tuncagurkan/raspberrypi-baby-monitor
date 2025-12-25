@@ -276,7 +276,45 @@
                 </div>
                 <div class="controls">
                     <button onclick="toggleMotionDetection()" id="motionToggleBtn">🚨 Hareket Algılama</button>
-                    <button onclick="toggleNightVision()" id="nightVisionBtn">🌙 Gece Görüşü</button>
+                </div>
+
+                <!-- Gece Görüşü Kontrol Paneli -->
+                <div style="margin-top: 20px; padding: 15px; background: white; border-radius: 10px; box-shadow: 0 5px 15px rgba(0,0,0,0.1);">
+                    <h3 style="margin-top: 0; color: #667eea;">🌙 Gece Görüşü (IR-CUT)</h3>
+
+                    <!-- Mod göstergesi -->
+                    <div style="margin-bottom: 15px; padding: 10px; background: #f0f4ff; border-radius: 8px; text-align: center;">
+                        <span style="font-weight: bold; color: #667eea;">Mevcut Mod: </span>
+                        <span id="nightVisionMode" style="font-weight: bold; color: #22c55e; font-size: 1.1em;">🤖 Otomatik</span>
+                        <span style="margin-left: 10px; font-size: 1.2em;" id="nightVisionIcon">☀️</span>
+                    </div>
+
+                    <!-- Kontrol butonları -->
+                    <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                        <button onclick="setNightVisionAuto()" id="autoModeBtn" style="flex: 1; padding: 10px; background: linear-gradient(135deg, #667eea, #764ba2); color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer;">
+                            🤖 Otomatik
+                        </button>
+                        <button onclick="setNightVisionManual()" id="manualModeBtn" style="flex: 1; padding: 10px; background: #e0e7ff; color: #667eea; border: none; border-radius: 8px; font-weight: bold; cursor: pointer;">
+                            ✋ Manuel
+                        </button>
+                    </div>
+
+                    <!-- Manuel kontrol butonları (başlangıçta gizli) -->
+                    <div id="manualControls" style="display: none; margin-top: 10px; padding: 10px; background: #fef3c7; border-radius: 8px;">
+                        <p style="margin: 0 0 10px 0; font-size: 0.9em; color: #92400e;">Manuel mod aktif - Gece/Gündüz modunu kendiniz seçin:</p>
+                        <div style="display: flex; gap: 10px;">
+                            <button onclick="setDayMode()" style="flex: 1; padding: 8px; background: linear-gradient(135deg, #fbbf24, #f59e0b); color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">
+                                ☀️ Gündüz
+                            </button>
+                            <button onclick="setNightMode()" style="flex: 1; padding: 8px; background: linear-gradient(135deg, #1e3a8a, #1e40af); color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">
+                                🌙 Gece
+                            </button>
+                        </div>
+                    </div>
+
+                    <div style="margin-top: 10px; text-align: center; font-size: 0.85em; color: #666;">
+                        <span id="nightVisionStatus">Otomatik mod: Parlaklığa göre otomatik geçiş yapılıyor</span>
+                    </div>
                 </div>
 
                 <div style="margin-top: 20px; padding: 15px; background: white; border-radius: 10px; box-shadow: 0 5px 15px rgba(0,0,0,0.1);">
@@ -673,35 +711,121 @@
             }
         }
 
-        // Gece görüşünü aç/kapa
-        function toggleNightVision() {
-            fetch('/api/nightvision/toggle', {
+        // ==================== Gece Görüşü Kontrolleri ====================
+
+        // Otomatik moda geç
+        function setNightVisionAuto() {
+            fetch('/api/nightvision/auto', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                }
+                headers: {'Content-Type': 'application/json'}
             })
             .then(response => response.json())
             .then(data => {
                 if (data.status === 'success') {
-                    updateNightVisionButton(data.night_vision_enabled);
-                    console.log('Gece görüşü:', data.night_vision_enabled ? 'AÇIK' : 'KAPALI');
+                    updateNightVisionUI('auto', data.current_mode);
+                    console.log('✅ Otomatik mod aktif');
                 }
             })
             .catch(error => console.error('Hata:', error));
         }
 
-        // Gece görüşü butonunu güncelle
-        function updateNightVisionButton(enabled) {
-            const btn = document.getElementById('nightVisionBtn');
-            if (enabled) {
-                btn.textContent = '🌙 Gece Görüşü: AÇIK';
-                btn.classList.remove('motion-off');
+        // Manuel moda geç
+        function setNightVisionManual() {
+            fetch('/api/nightvision/manual', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'}
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    updateNightVisionUI('manual', data.current_mode);
+                    console.log('✅ Manuel mod aktif');
+                }
+            })
+            .catch(error => console.error('Hata:', error));
+        }
+
+        // Gündüz moduna geç (Manuel)
+        function setDayMode() {
+            fetch('/api/nightvision/day', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'}
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    updateNightVisionUI('manual', 'day');
+                    console.log('☀️ Gündüz modu aktif');
+                }
+            })
+            .catch(error => console.error('Hata:', error));
+        }
+
+        // Gece moduna geç (Manuel)
+        function setNightMode() {
+            fetch('/api/nightvision/night', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'}
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    updateNightVisionUI('manual', 'night');
+                    console.log('🌙 Gece modu aktif');
+                }
+            })
+            .catch(error => console.error('Hata:', error));
+        }
+
+        // UI güncelle
+        function updateNightVisionUI(controlMode, currentMode) {
+            const modeLabel = document.getElementById('nightVisionMode');
+            const modeIcon = document.getElementById('nightVisionIcon');
+            const statusText = document.getElementById('nightVisionStatus');
+            const manualControls = document.getElementById('manualControls');
+            const autoBtn = document.getElementById('autoModeBtn');
+            const manualBtn = document.getElementById('manualModeBtn');
+
+            // Icon güncelle
+            modeIcon.textContent = currentMode === 'night' ? '🌙' : '☀️';
+
+            if (controlMode === 'auto') {
+                // Otomatik mod
+                modeLabel.textContent = '🤖 Otomatik';
+                modeLabel.style.color = '#22c55e';
+                statusText.textContent = 'Otomatik mod: Parlaklığa göre otomatik geçiş yapılıyor';
+                manualControls.style.display = 'none';
+
+                autoBtn.style.background = 'linear-gradient(135deg, #667eea, #764ba2)';
+                autoBtn.style.color = 'white';
+                manualBtn.style.background = '#e0e7ff';
+                manualBtn.style.color = '#667eea';
             } else {
-                btn.textContent = '🌑 Gece Görüşü: KAPALI';
-                btn.classList.add('motion-off');
+                // Manuel mod
+                modeLabel.textContent = '✋ Manuel';
+                modeLabel.style.color = '#f59e0b';
+                statusText.textContent = 'Manuel mod: Gece/Gündüz modunu siz kontrol ediyorsunuz';
+                manualControls.style.display = 'block';
+
+                autoBtn.style.background = '#e0e7ff';
+                autoBtn.style.color = '#667eea';
+                manualBtn.style.background = 'linear-gradient(135deg, #667eea, #764ba2)';
+                manualBtn.style.color = 'white';
             }
         }
+
+        // Sayfa yüklendiğinde status al
+        function updateNightVisionStatus() {
+            fetch('/api/nightvision/status')
+            .then(response => response.json())
+            .then(data => {
+                updateNightVisionUI(data.control_mode, data.current_mode);
+            })
+            .catch(error => console.error('Status hatası:', error));
+        }
+
+        // Her 5 saniyede bir status güncelle (otomatik moddayken)
+        setInterval(updateNightVisionStatus, 5000);
 
         // Sistemi kapat
         function shutdownSystem() {
@@ -1205,6 +1329,9 @@
 
             // Mikrofon ses seviyesi monitörünü başlat
             initializeAudioLevelMonitor();
+
+            // Gece görüşü status'unu al
+            updateNightVisionStatus();
         });
         
         // Video stream hata durumu
