@@ -4,6 +4,7 @@ import threading
 import time
 from datetime import datetime
 import logging
+from ir_control import IRControl
 
 class CameraStream:
     def __init__(self, config):
@@ -20,7 +21,12 @@ class CameraStream:
         self.motion_frame_counter = 0  # Performans için frame atlama sayacı
         self.motion_boxes = []  # Hareket algılanan bölgelerin koordinatları
         self.prev_frame = None  # Önceki frame (frame difference için)
-        
+
+        # IR-CUT ve IR LED kontrolü (Arducam)
+        self.ir_control = IRControl(config)
+        self.brightness_check_counter = 0  # Parlaklık kontrolü için frame sayacı
+        self.current_brightness = 50  # Mevcut parlaklık seviyesi
+
         self.initialize_camera()
         self.start_streaming()
     
@@ -71,9 +77,13 @@ class CameraStream:
     
     def _process_frame(self, frame):
         """Frame işleme"""
-        # Gece görüşü işleme
-        if self.config.NIGHT_VISION_ENABLED:
-            frame = self._apply_night_vision(frame)
+        # Otomatik parlaklık kontrolü (her 30 frame'de bir - yaklaşık her saniye)
+        if self.config.NIGHT_VISION_AUTO:
+            self.brightness_check_counter += 1
+            if self.brightness_check_counter >= 30:
+                self.current_brightness = self._calculate_brightness(frame)
+                self.ir_control.auto_switch_mode(self.current_brightness)
+                self.brightness_check_counter = 0
 
         # Hareket tespiti (performans için her N frame'de bir)
         if self.config.MOTION_DETECTION_ENABLED:
@@ -87,30 +97,21 @@ class CameraStream:
 
         return frame_with_info
     
-    def _apply_night_vision(self, frame):
-        """Gece görüşü efekti uygula (yazılımsal)"""
-        # Histogram eşitleme (CLAHE - Contrast Limited Adaptive Histogram Equalization)
+    def _calculate_brightness(self, frame):
+        """
+        Frame'in ortalama parlaklığını hesapla (0-100 arası)
+        Karanlık ortamları tespit etmek için kullanılır
+        """
         # Gri tonlamaya çevir
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
-        # CLAHE uygula (performanslı)
-        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-        enhanced = clahe.apply(gray)
+        # Ortalama parlaklık (0-255 arası)
+        mean_brightness = np.mean(gray)
 
-        # Parlaklık ve kontrast ayarla
-        alpha = 1.0 + (self.config.NIGHT_VISION_CONTRAST / 100.0)  # Kontrast
-        beta = self.config.NIGHT_VISION_BRIGHTNESS  # Parlaklık
-        enhanced = cv2.convertScaleAbs(enhanced, alpha=alpha, beta=beta)
+        # 0-100 aralığına ölçekle
+        brightness_percentage = (mean_brightness / 255.0) * 100
 
-        # Tekrar BGR'ye çevir (gece görüşü yeşil efekt için)
-        night_vision_frame = cv2.cvtColor(enhanced, cv2.COLOR_GRAY2BGR)
-
-        # Yeşil ton ekle (opsiyonel - klasik gece görüşü görünümü)
-        night_vision_frame[:, :, 0] = night_vision_frame[:, :, 0] * 0.3  # Mavi azalt
-        night_vision_frame[:, :, 2] = night_vision_frame[:, :, 2] * 0.3  # Kırmızı azalt
-        night_vision_frame[:, :, 1] = night_vision_frame[:, :, 1] * 1.2  # Yeşil artır
-
-        return night_vision_frame
+        return brightness_percentage
 
     def _detect_motion(self, frame):
         """Hareket tespiti - ULTRA BASIT (frame difference only)"""
@@ -157,8 +158,9 @@ class CameraStream:
         """Frame üzerine bilgi overlay'i ekle (minimal - performans)"""
         # Frame kopyalama bile CPU yer - direkt üzerine yaz
 
-        # Sadece FPS (küçük font - performans)
-        cv2.putText(frame, f"FPS:{self.fps}", (5, 20),
+        # FPS ve Gece/Gündüz modu
+        mode_icon = "🌙" if self.ir_control.is_night_mode else "☀️"
+        cv2.putText(frame, f"FPS:{self.fps} {mode_icon}", (5, 20),
                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
 
         # Hareket durumu (sadece aktifse)
@@ -221,3 +223,6 @@ class CameraStream:
         self.is_streaming = False
         if self.camera:
             self.camera.release()
+
+        # GPIO temizle
+        self.ir_control.cleanup()

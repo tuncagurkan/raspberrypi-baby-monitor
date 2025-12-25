@@ -26,10 +26,17 @@ class Config:
     MOTION_DETECTION_ENABLED = True  # Hareket algılama AÇIK
     MOTION_CHECK_INTERVAL = 10  # Her 10 frame'de bir (çok daha az CPU)
 
-    # Gece görüşü
-    NIGHT_VISION_ENABLED = False  # Gece görüşü modu
-    NIGHT_VISION_BRIGHTNESS = 50  # Parlaklık artırımı (0-100)
-    NIGHT_VISION_CONTRAST = 30    # Kontrast artırımı (0-100)
+    # Gece görüşü - Arducam Motorized IR-CUT
+    NIGHT_VISION_AUTO = True  # Otomatik gece/gündüz geçişi
+    NIGHT_VISION_BRIGHTNESS_THRESHOLD = 50  # Gece moduna geçiş eşiği (0-100, düşük = karanlık)
+
+    # Arducam IR-CUT GPIO Pins
+    IR_CUT_DAY_PIN = 4      # IR-CUT filtre gündüz modu (IR kapanır)
+    IR_CUT_NIGHT_PIN = 17   # IR-CUT filtre gece modu (IR açılır)
+    IR_LED_PIN = 5          # IR LED kontrolü
+
+    # GPIO Pin Control
+    GPIO_ENABLED = True     # GPIO kontrolü aktif mi?
     # 
     # # Sensör ayarları
     # DHT_PIN = 4  # DHT22 sensör pini
