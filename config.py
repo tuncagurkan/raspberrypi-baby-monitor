@@ -5,9 +5,9 @@ class Config:
     WEB_PORT = 8080
 
     # API Server Configuration
-    API_BASE_URL = 'http://35.158.190.252:8000'
+    API_BASE_URL = 'https://api.baby-monitor.example.com'
     DEVICE_ID = 'baby-monitor-pi'
-    DEVICE_AUTH_KEY = 'e6a1d40a42f6dd017cdc7735176f65294ff7230a93d4e21597c7e5b0f26075ae'
+    DEVICE_AUTH_KEY = 'your_device_auth_key_here'
 
     # Kamera ayarları
     CAMERA_WIDTH = 320  # Düşük çözünürlük (performans için)
