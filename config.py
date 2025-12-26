@@ -1,20 +1,46 @@
+import pyaudio
+
 class Config:
     # Web Server
-    WEB_PORT = 5000
+    WEB_PORT = 8080
 
     # API Server Configuration
-    API_BASE_URL = 'http://localhost:8080'
-    DEVICE_ID = 'xxx'
-    DEVICE_AUTH_KEY = 'yyy'
+    API_BASE_URL = 'https://api.baby-monitor.example.com'
+    DEVICE_ID = 'baby-monitor-pi'
+    DEVICE_AUTH_KEY = 'your_device_auth_key_here'
 
     # Kamera ayarları
-    CAMERA_WIDTH = 640
-    CAMERA_HEIGHT = 480
-    CAMERA_FPS = 25
-    
-    # İleride kullanılabilir (şimdilik comment)
-    # # Hareket tespiti
-    # MOTION_THRESHOLD = 1.0  # %1 hareket threshold
+    CAMERA_WIDTH = 320  # Düşük çözünürlük (performans için)
+    CAMERA_HEIGHT = 240
+    CAMERA_FPS = 30
+
+    # Audio settings - USB mikrofon için optimize
+    AUDIO_FORMAT = pyaudio.paInt16  # 16-bit audio
+    AUDIO_CHANNELS = 2  # Stereo (USB mikrofon 2 kanal destekliyor)
+    AUDIO_RATE = 48000  # 48kHz sample rate (USB mikrofon için)
+    AUDIO_CHUNK = 1536  # Frames per buffer (orta boyut - performans/kalite dengesi)
+    AUDIO_DEVICE_INDEX = None  # None = default device (USB mikrofon otomatik bulunuyor)
+
+    # Audio processing settings - Hafif filtreleme
+    AUDIO_NOISE_GATE = 0  # Gürültü eşiği KAPALI (bebek sesini kesmesin)
+    AUDIO_NORMALIZE = True  # Normalizasyon AÇIK (cızırtıyı azaltmak için)
+
+    # Hareket tespiti
+    MOTION_THRESHOLD = 0.5  # %0.5 hareket threshold - El ve kafa hareketleri için hassas
+    MOTION_DETECTION_ENABLED = True  # Hareket algılama AÇIK
+    MOTION_CHECK_INTERVAL = 10  # Her 10 frame'de bir (çok daha az CPU)
+
+    # Gece görüşü - Arducam Motorized IR-CUT
+    NIGHT_VISION_AUTO = True  # Otomatik gece/gündüz geçişi
+    NIGHT_VISION_BRIGHTNESS_THRESHOLD = 50  # Gece moduna geçiş eşiği (0-100, düşük = karanlık)
+
+    # Arducam IR-CUT GPIO Pins
+    IR_CUT_DAY_PIN = 4      # IR-CUT filtre gündüz modu (IR kapanır)
+    IR_CUT_NIGHT_PIN = 17   # IR-CUT filtre gece modu (IR açılır)
+    IR_LED_PIN = 5          # IR LED kontrolü
+
+    # GPIO Pin Control
+    GPIO_ENABLED = True     # GPIO kontrolü aktif mi?
     # 
     # # Sensör ayarları
     # DHT_PIN = 4  # DHT22 sensör pini

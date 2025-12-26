@@ -126,6 +126,11 @@
             transform: translateY(-2px);
             box-shadow: 0 5px 15px rgba(0,0,0,0.2);
         }
+
+        button.motion-off {
+            background: linear-gradient(45deg, #6c757d, #495057);
+            opacity: 0.7;
+        }
         
         .connection-status {
             position: fixed;
@@ -158,15 +163,89 @@
         .pulse {
             animation: pulse 2s infinite;
         }
-        
+
         @keyframes pulse {
             0% { transform: scale(1); }
             50% { transform: scale(1.05); }
             100% { transform: scale(1); }
         }
+
+        /* Hareket bildirimi */
+        .motion-alert {
+            position: fixed;
+            top: 80px;
+            right: 20px;
+            background: linear-gradient(135deg, #ff6b6b, #ee5a6f);
+            color: white;
+            padding: 20px 25px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(255, 107, 107, 0.4);
+            z-index: 1001;
+            font-weight: bold;
+            font-size: 1.1em;
+            display: none;
+            animation: slideIn 0.5s ease;
+        }
+
+        .motion-alert.show {
+            display: block;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        .motion-alert-icon {
+            font-size: 2em;
+            display: inline-block;
+            animation: shake 0.5s infinite;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+
+        /* Shutdown button */
+        .shutdown-btn {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: linear-gradient(135deg, #dc2626, #b91c1c);
+            color: white;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(220, 38, 38, 0.3);
+            z-index: 1002;
+            font-weight: bold;
+            font-size: 0.95em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .shutdown-btn:hover {
+            background: linear-gradient(135deg, #b91c1c, #991b1b);
+            transform: translateY(-2px);
+            box-shadow: 0 7px 20px rgba(220, 38, 38, 0.4);
+        }
+
+        .shutdown-btn:active {
+            transform: translateY(0);
+        }
     </style>
 </head>
 <body>
+    <button class="shutdown-btn" onclick="shutdownSystem()">🔌 Cihazı Kapat</button>
+
     <div class="container">
         <div class="header">
             <h1>🍼 Baby Monitor</h1>
@@ -176,7 +255,12 @@
         <div class="connection-status connected" id="connectionStatus">
             🟢 Bağlı
         </div>
-        
+
+        <div class="motion-alert" id="motionAlert">
+            <span class="motion-alert-icon">🚨</span>
+            <span id="motionAlertText">Hareket Algılandı!</span>
+        </div>
+
         <div class="main-grid">
             <div class="video-section">
                 <div class="video-container">
@@ -190,8 +274,135 @@
                     <button onclick="refreshStream()">🔄 Yenile</button>
                     <button onclick="toggleFullscreen()">🖼️ Tam Ekran</button>
                 </div>
+                <div class="controls">
+                    <button onclick="toggleMotionDetection()" id="motionToggleBtn">🚨 Hareket Algılama</button>
+                </div>
+
+                <!-- Gece Görüşü Kontrol Paneli -->
+                <div style="margin-top: 20px; padding: 15px; background: white; border-radius: 10px; box-shadow: 0 5px 15px rgba(0,0,0,0.1);">
+                    <h3 style="margin-top: 0; color: #667eea;">🌙 Gece Görüşü (IR-CUT)</h3>
+
+                    <!-- Mod göstergesi -->
+                    <div style="margin-bottom: 15px; padding: 10px; background: #f0f4ff; border-radius: 8px; text-align: center;">
+                        <span style="font-weight: bold; color: #667eea;">Mevcut Mod: </span>
+                        <span id="nightVisionMode" style="font-weight: bold; color: #22c55e; font-size: 1.1em;">🤖 Otomatik</span>
+                        <span style="margin-left: 10px; font-size: 1.2em;" id="nightVisionIcon">☀️</span>
+                    </div>
+
+                    <!-- Kontrol butonları -->
+                    <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                        <button onclick="setNightVisionAuto()" id="autoModeBtn" style="flex: 1; padding: 10px; background: linear-gradient(135deg, #667eea, #764ba2); color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer;">
+                            🤖 Otomatik
+                        </button>
+                        <button onclick="setNightVisionManual()" id="manualModeBtn" style="flex: 1; padding: 10px; background: #e0e7ff; color: #667eea; border: none; border-radius: 8px; font-weight: bold; cursor: pointer;">
+                            ✋ Manuel
+                        </button>
+                    </div>
+
+                    <!-- Manuel kontrol butonları (başlangıçta gizli) -->
+                    <div id="manualControls" style="display: none; margin-top: 10px; padding: 10px; background: #fef3c7; border-radius: 8px;">
+                        <p style="margin: 0 0 10px 0; font-size: 0.9em; color: #92400e;">Manuel mod aktif - Gece/Gündüz modunu kendiniz seçin:</p>
+                        <div style="display: flex; gap: 10px;">
+                            <button onclick="setDayMode()" style="flex: 1; padding: 8px; background: linear-gradient(135deg, #fbbf24, #f59e0b); color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">
+                                ☀️ Gündüz
+                            </button>
+                            <button onclick="setNightMode()" style="flex: 1; padding: 8px; background: linear-gradient(135deg, #1e3a8a, #1e40af); color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">
+                                🌙 Gece
+                            </button>
+                        </div>
+                    </div>
+
+                    <div style="margin-top: 10px; text-align: center; font-size: 0.85em; color: #666;">
+                        <span id="nightVisionStatus">Otomatik mod: Parlaklığa göre otomatik geçiş yapılıyor</span>
+                    </div>
+                </div>
+
+                <div style="margin-top: 20px; padding: 15px; background: white; border-radius: 10px; box-shadow: 0 5px 15px rgba(0,0,0,0.1);">
+                    <h3 style="margin-top: 0; color: #667eea;">🎤 Mikrofon (Bebek Sesi)</h3>
+
+                    <!-- Gizli audio stream - manuel başlatılacak -->
+                    <audio id="audioStream" style="display: none;">
+                        <source src="/audio_feed" type="audio/wav">
+                    </audio>
+
+                    <!-- Ses seviyesi göstergesi -->
+                    <div style="margin-bottom: 15px; padding: 10px; background: #f0f4ff; border-radius: 8px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                            <span style="font-weight: bold; color: #667eea;">📊 Ses Seviyesi:</span>
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <button id="activateAudioMonitor" onclick="activateAudioMonitor()" style="padding: 5px 12px; background: linear-gradient(135deg, #667eea, #764ba2); color: white; border: none; border-radius: 5px; font-size: 0.85em; font-weight: bold; cursor: pointer;">
+                                    🎚️ Aktifleştir
+                                </button>
+                                <span id="audioLevelLabel" style="font-weight: bold; color: #667eea; font-size: 1.1em;">0%</span>
+                            </div>
+                        </div>
+                        <div style="width: 100%; height: 20px; background: #e0e7ff; border-radius: 10px; overflow: hidden; position: relative;">
+                            <div id="audioLevelBar" style="height: 100%; width: 0%; background: linear-gradient(90deg, #4ade80, #22c55e); transition: width 0.1s ease;"></div>
+                        </div>
+                    </div>
+
+                    <!-- Volume kontrol -->
+                    <div style="margin-top: 15px;">
+                        <label style="display: block; margin-bottom: 5px; font-weight: bold;">🔊 Mikrofon Ses Seviyesi:</label>
+                        <input type="range" id="micVolumeSlider" min="0" max="100" value="100" style="width: 100%;" oninput="updateMicVolume(this.value)">
+                        <span id="micVolumeLabel" style="display: block; text-align: center; margin-top: 5px; color: #667eea; font-weight: bold;">100%</span>
+                    </div>
+
+                    <div style="margin-top: 10px; text-align: center; font-size: 0.9em; color: #666;">
+                        <span id="micStatus" style="color: #22c55e; font-weight: bold;">🟢 Mikrofon aktif - Canlı dinleniyor</span>
+                    </div>
+                </div>
+
+                <div style="margin-top: 20px; padding: 15px; background: white; border-radius: 10px; box-shadow: 0 5px 15px rgba(0,0,0,0.1);">
+                    <h3 style="margin-top: 0; color: #667eea;">🎵 Sakinleştirici Sesler</h3>
+                    <select id="soundSelect" style="width: 100%; padding: 10px; border-radius: 5px; border: 2px solid #667eea; margin-bottom: 10px;">
+                        <option value="">Ses Seçin...</option>
+                        <option value="lullaby">🎶 Dandini Dandini Dastana</option>
+                        <option value="lullaby2">🎶 Beyaz Gürültü Ninni</option>
+                    </select>
+                    <div class="controls">
+                        <button onclick="playSoothingSound()" id="playBtn">▶️ Çal</button>
+                        <button onclick="stopSoothingSound()" id="stopBtn">⏹️ Durdur</button>
+                    </div>
+                    <div id="soundStatusDiv" style="display: none; margin-top: 10px; padding: 10px; background: #e3f2fd; border-radius: 5px; text-align: center; font-weight: bold; color: #1976d2;">
+                        <div style="font-size: 1.1em; margin-bottom: 5px;" id="currentSoundName">🎵 --</div>
+                        <div style="font-size: 1.3em; color: #0d47a1;" id="elapsedTime">⏱️ 0:00</div>
+                    </div>
+                    <div style="margin-top: 10px;">
+                        <label style="display: block; margin-bottom: 5px;">🔊 Ses Seviyesi:</label>
+                        <input type="range" id="volumeSlider" min="0" max="100" value="50" style="width: 100%;" oninput="updateVolume(this.value)">
+                        <span id="volumeLabel" style="display: block; text-align: center; margin-top: 5px;">50%</span>
+                    </div>
+                </div>
+
+                <div style="margin-top: 20px; padding: 15px; background: white; border-radius: 10px; box-shadow: 0 5px 15px rgba(0,0,0,0.1);">
+                    <h3 style="margin-top: 0; color: #667eea;">📶 WiFi Ağları</h3>
+
+                    <div id="wifiStatusDiv" style="padding: 10px; background: #e8f5e9; border-radius: 5px; margin-bottom: 10px; display: none;">
+                        <div style="font-weight: bold; color: #2e7d32; margin-bottom: 5px;">
+                            <span>🟢 Bağlı:</span>
+                            <span id="activeNetwork">--</span>
+                        </div>
+                        <div style="color: #558b2f;">
+                            <span>📡 Sinyal:</span>
+                            <span id="signalStrength">--</span>
+                        </div>
+                    </div>
+
+                    <div style="margin-bottom: 10px;">
+                        <button onclick="refreshWifiNetworks()" style="width: 100%; padding: 10px; background: linear-gradient(135deg, #667eea, #764ba2); color: white; border: none; border-radius: 5px; font-weight: bold; cursor: pointer;">
+                            🔄 Ağları Yenile
+                        </button>
+                    </div>
+
+                    <div id="wifiNetworksList" style="max-height: 250px; overflow-y: auto;">
+                        <div style="text-align: center; color: #999; padding: 20px;">
+                            Ağları yüklemek için butona tıklayın
+                        </div>
+                    </div>
+                </div>
             </div>
-            
+
             <div class="status-panel">
                 <h2>📊 Durum Bilgileri</h2>
                 
@@ -204,7 +415,12 @@
                     <span>📊 FPS:</span>
                     <span class="status-value status-normal" id="fpsStatus">-- fps</span>
                 </div>
-                
+
+                <div class="status-item">
+                    <span>🕐 Saat:</span>
+                    <span class="status-value status-normal" id="currentTime">--:--:--</span>
+                </div>
+
                 <div class="status-item">
                     <span>👥 İzleyici:</span>
                     <span class="status-value" id="clientCount">--</span>
@@ -214,12 +430,13 @@
                     <span>⏰ Son Güncelleme:</span>
                     <span class="status-value" id="lastUpdate">--:--:--</span>
                 </div>
-                
-                <!-- İleride kullanılabilir (şimdilik comment)
+
                 <div class="status-item">
                     <span>🏃 Hareket:</span>
                     <span class="status-value status-normal" id="motionStatus">Normal</span>
                 </div>
+
+                <!-- İleride kullanılabilir (şimdilik comment)
                 
                 <div class="status-item">
                     <span>🌡️ Sıcaklık:</span>
@@ -241,6 +458,50 @@
     </div>
 
     <script>
+        // Saat güncelleme fonksiyonu
+        function updateClock() {
+            const now = new Date();
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            const seconds = String(now.getSeconds()).padStart(2, '0');
+            const timeString = `${hours}:${minutes}:${seconds}`;
+            document.getElementById('currentTime').textContent = timeString;
+        }
+
+        // Saati her saniye güncelle
+        setInterval(updateClock, 1000);
+        updateClock(); // İlk güncelleme
+
+        // Wake Lock API - Ekranın kapanmasını engelle
+        let wakeLock = null;
+
+        async function requestWakeLock() {
+            try {
+                if ('wakeLock' in navigator) {
+                    wakeLock = await navigator.wakeLock.request('screen');
+                    console.log('🔒 Wake Lock aktif - Ekran açık kalacak');
+
+                    wakeLock.addEventListener('release', () => {
+                        console.log('🔓 Wake Lock serbest bırakıldı');
+                    });
+                } else {
+                    console.log('⚠️ Wake Lock API desteklenmiyor');
+                }
+            } catch (err) {
+                console.error('❌ Wake Lock hatası:', err);
+            }
+        }
+
+        // Sayfa görünür olduğunda Wake Lock'u yeniden aktifleştir
+        document.addEventListener('visibilitychange', async () => {
+            if (wakeLock !== null && document.visibilityState === 'visible') {
+                await requestWakeLock();
+            }
+        });
+
+        // Sayfa yüklendiğinde Wake Lock'u aktifleştir
+        requestWakeLock();
+
         // Socket.IO bağlantısı
         const socket = io();
         let isConnected = false;
@@ -262,6 +523,16 @@
         socket.on('status_update', function(data) {
             updateStatus(data);
         });
+
+        // Hareket bildirimi
+        socket.on('motion_alert', function(data) {
+            showMotionAlert(data);
+        });
+
+        // Ses durumu güncellemesi
+        socket.on('sound_status', function(data) {
+            updateSoundStatus(data);
+        });
         
         function updateConnectionStatus(connected) {
             const statusEl = document.getElementById('connectionStatus');
@@ -279,16 +550,27 @@
             if (data.camera_fps !== undefined) {
                 document.getElementById('fpsStatus').textContent = data.camera_fps + ' fps';
             }
-            
-            // İleride hareket tespiti eklenebilir
-            // const motionEl = document.getElementById('motionStatus');
-            // if (data.motion_detected) {
-            //     motionEl.textContent = 'Hareket Var!';
-            //     motionEl.className = 'status-value status-alert pulse';
-            // } else {
-            //     motionEl.textContent = 'Normal';
-            //     motionEl.className = 'status-value status-normal';
-            // }
+
+            // Hareket tespiti
+            const motionEl = document.getElementById('motionStatus');
+            if (data.motion_detected) {
+                motionEl.textContent = 'Hareket Var!';
+                motionEl.className = 'status-value status-alert pulse';
+            } else {
+                motionEl.textContent = 'Normal';
+                motionEl.className = 'status-value status-normal';
+            }
+
+            // Hareket algılama butonu durumu
+            if (data.motion_enabled !== undefined) {
+                updateMotionButton(data.motion_enabled);
+            }
+
+            // Gece görüşü modu durumu
+            if (data.night_vision_auto !== undefined && data.night_vision_mode !== undefined) {
+                const controlMode = data.night_vision_auto ? 'auto' : 'manual';
+                updateNightVisionUI(controlMode, data.night_vision_mode);
+            }
             
             // İleride sıcaklık eklenebilir
             // const tempEl = document.getElementById('temperature');
@@ -333,6 +615,52 @@
                 document.getElementById('clientCount').textContent = data.connected_clients;
             }
         });
+
+        // Hareket bildirimi göster
+        let motionAlertTimeout;
+        function showMotionAlert(data) {
+            const alertEl = document.getElementById('motionAlert');
+            const textEl = document.getElementById('motionAlertText');
+
+            // Bildirim metnini güncelle
+            textEl.textContent = `Hareket Algılandı! (${data.motion_percentage}%)`;
+
+            // Bildirimi göster
+            alertEl.classList.add('show');
+
+            //vv Ses çal (tarayıcı izin verirse)
+            try {
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+
+                oscillator.frequency.value = 800;
+                oscillator.type = 'sine';
+
+                gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+
+                oscillator.start(audioContext.currentTime);
+                oscillator.stop(audioContext.currentTime + 0.5);
+            } catch (e) {
+                console.log('Ses çalınamadı:', e);
+            }
+
+            // Önceki timeout'u temizle
+            if (motionAlertTimeout) {
+                clearTimeout(motionAlertTimeout);
+            }
+
+            // 5 saniye sonra gizle
+            motionAlertTimeout = setTimeout(function() {
+                alertEl.classList.remove('show');
+            }, 5000);
+
+            console.log('🚨 Hareket bildirimi:', data);
+        }
         
         function refreshStream() {
             const videoEl = document.getElementById('videoStream');
@@ -353,10 +681,673 @@
                 videoEl.msRequestFullscreen();
             }
         }
-        
+
+        // Hareket algılamayı aç/kapa
+        function toggleMotionDetection() {
+            fetch('/api/motion/toggle', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    updateMotionButton(data.motion_enabled);
+                    console.log('Hareket algılama:', data.motion_enabled ? 'AÇIK' : 'KAPALI');
+                }
+            })
+            .catch(error => console.error('Hata:', error));
+        }
+
+        // Hareket algılama butonunu güncelle
+        function updateMotionButton(enabled) {
+            const btn = document.getElementById('motionToggleBtn');
+            if (enabled) {
+                btn.textContent = '🚨 Hareket: AÇIK';
+                btn.classList.remove('motion-off');
+            } else {
+                btn.textContent = '🚫 Hareket: KAPALI';
+                btn.classList.add('motion-off');
+            }
+        }
+
+        // ==================== Gece Görüşü Kontrolleri ====================
+
+        // Otomatik moda geç
+        function setNightVisionAuto() {
+            fetch('/api/nightvision/auto', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'}
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    updateNightVisionUI('auto', data.current_mode);
+                    console.log('✅ Otomatik mod aktif');
+                }
+            })
+            .catch(error => console.error('Hata:', error));
+        }
+
+        // Manuel moda geç
+        function setNightVisionManual() {
+            fetch('/api/nightvision/manual', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'}
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    updateNightVisionUI('manual', data.current_mode);
+                    console.log('✅ Manuel mod aktif');
+                }
+            })
+            .catch(error => console.error('Hata:', error));
+        }
+
+        // Gündüz moduna geç (Manuel)
+        function setDayMode() {
+            console.log('🔧 setDayMode çağrıldı');
+            fetch('/api/nightvision/day', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'}
+            })
+            .then(response => {
+                console.log('📡 Response status:', response.status);
+                return response.json();
+            })
+            .then(data => {
+                console.log('📦 Response data:', data);
+                if (data.status === 'success') {
+                    updateNightVisionUI('manual', 'day');
+                    console.log('☀️ Gündüz modu aktif');
+                } else {
+                    console.error('❌ Hata:', data.message);
+                    alert('Hata: ' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('❌ Fetch hatası:', error);
+                alert('API isteği başarısız: ' + error);
+            });
+        }
+
+        // Gece moduna geç (Manuel)
+        function setNightMode() {
+            console.log('🔧 setNightMode çağrıldı');
+            fetch('/api/nightvision/night', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'}
+            })
+            .then(response => {
+                console.log('📡 Response status:', response.status);
+                return response.json();
+            })
+            .then(data => {
+                console.log('📦 Response data:', data);
+                if (data.status === 'success') {
+                    updateNightVisionUI('manual', 'night');
+                    console.log('🌙 Gece modu aktif');
+                } else {
+                    console.error('❌ Hata:', data.message);
+                    alert('Hata: ' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('❌ Fetch hatası:', error);
+                alert('API isteği başarısız: ' + error);
+            });
+        }
+
+        // UI güncelle
+        function updateNightVisionUI(controlMode, currentMode) {
+            const modeLabel = document.getElementById('nightVisionMode');
+            const modeIcon = document.getElementById('nightVisionIcon');
+            const statusText = document.getElementById('nightVisionStatus');
+            const manualControls = document.getElementById('manualControls');
+            const autoBtn = document.getElementById('autoModeBtn');
+            const manualBtn = document.getElementById('manualModeBtn');
+
+            // Icon güncelle
+            modeIcon.textContent = currentMode === 'night' ? '🌙' : '☀️';
+
+            if (controlMode === 'auto') {
+                // Otomatik mod
+                modeLabel.textContent = '🤖 Otomatik';
+                modeLabel.style.color = '#22c55e';
+                statusText.textContent = 'Otomatik mod: Parlaklığa göre otomatik geçiş yapılıyor';
+                manualControls.style.display = 'none';
+
+                autoBtn.style.background = 'linear-gradient(135deg, #667eea, #764ba2)';
+                autoBtn.style.color = 'white';
+                manualBtn.style.background = '#e0e7ff';
+                manualBtn.style.color = '#667eea';
+            } else {
+                // Manuel mod
+                modeLabel.textContent = '✋ Manuel';
+                modeLabel.style.color = '#f59e0b';
+                statusText.textContent = 'Manuel mod: Gece/Gündüz modunu siz kontrol ediyorsunuz';
+                manualControls.style.display = 'block';
+
+                autoBtn.style.background = '#e0e7ff';
+                autoBtn.style.color = '#667eea';
+                manualBtn.style.background = 'linear-gradient(135deg, #667eea, #764ba2)';
+                manualBtn.style.color = 'white';
+            }
+        }
+
+        // Sayfa yüklendiğinde status al
+        function updateNightVisionStatus() {
+            fetch('/api/nightvision/status')
+            .then(response => response.json())
+            .then(data => {
+                updateNightVisionUI(data.control_mode, data.current_mode);
+            })
+            .catch(error => console.error('Status hatası:', error));
+        }
+
+        // Her 5 saniyede bir status güncelle (otomatik moddayken)
+        setInterval(updateNightVisionStatus, 5000);
+
+        // Sistemi kapat
+        function shutdownSystem() {
+            if (confirm('Cihazı kapatmak istediğinize emin misiniz?')) {
+                fetch('/api/system/shutdown', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        alert('Sistem kapatılıyor...');
+                        console.log('Sistem kapatma komutu gönderildi');
+                    } else {
+                        alert('Hata: ' + data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Shutdown hatası:', error);
+                    alert('Sistem kapatma isteği gönderilemedi');
+                });
+            }
+        }
+
+        // Mikrofon ses seviyesini ayarla
+        function updateMicVolume(volume) {
+            const audioStream = document.getElementById('audioStream');
+            const volumeLabel = document.getElementById('micVolumeLabel');
+
+            // Volume değerini 0-1 aralığına çevir
+            const volumeValue = volume / 100;
+            audioStream.volume = volumeValue;
+
+            // Label'ı güncelle
+            volumeLabel.textContent = volume + '%';
+
+            console.log('🎤 Mikrofon ses seviyesi:', volume + '%');
+        }
+
+        // Mikrofon ses seviyesi göstergesi için Web Audio API
+        let audioContext = null;
+        let analyser = null;
+        let animationId = null;
+
+        // Audio monitor'ü buton ile aktifleştir
+        function activateAudioMonitor() {
+            const audioElement = document.getElementById('audioStream');
+            const button = document.getElementById('activateAudioMonitor');
+
+            console.log('🎚️ Audio monitor aktifleştiriliyor...');
+
+            // AudioContext'i resume et
+            if (audioContext && audioContext.state === 'suspended') {
+                console.log('🔓 AudioContext resume ediliyor...');
+                audioContext.resume().then(() => {
+                    console.log('✅ AudioContext aktif:', audioContext.state);
+                });
+            }
+
+            // Audio paused ise başlat
+            if (audioElement.paused) {
+                console.log('▶️ Audio başlatılıyor...');
+                audioElement.play()
+                    .then(() => {
+                        console.log('✅ Audio başlatıldı');
+                        // Butonu güncelle
+                        button.textContent = '✅ Aktif';
+                        button.style.background = 'linear-gradient(135deg, #10b981, #059669)';
+                        button.disabled = true;
+                    })
+                    .catch(err => {
+                        console.error('❌ Audio başlatılamadı:', err.name, err.message);
+                        button.textContent = '❌ Hata';
+                        button.style.background = 'linear-gradient(135deg, #dc2626, #991b1b)';
+                    });
+            } else {
+                // Zaten çalıyor
+                console.log('ℹ️ Audio zaten çalıyor');
+                button.textContent = '✅ Aktif';
+                button.style.background = 'linear-gradient(135deg, #10b981, #059669)';
+                button.disabled = true;
+            }
+        }
+
+        function initializeAudioLevelMonitor() {
+            const audioElement = document.getElementById('audioStream');
+
+            // Debug: Audio element durumunu izle
+            console.log('🎤 Mikrofon stream başlatılıyor...');
+            console.log('📍 Audio source URL:', audioElement.querySelector('source').src);
+
+            // Hata durumları
+            audioElement.addEventListener('error', function(e) {
+                console.error('❌ Audio element hatası:', e);
+                console.error('❌ Error details:', audioElement.error);
+
+                // Status'u güncelle
+                const micStatus = document.getElementById('micStatus');
+                if (micStatus) {
+                    micStatus.textContent = '🔴 Mikrofon bağlantısı hatası';
+                    micStatus.style.color = '#dc2626';
+                }
+            });
+
+            audioElement.querySelector('source').addEventListener('error', function(e) {
+                console.error('❌ Audio source hatası:', e);
+
+                // Status'u güncelle
+                const micStatus = document.getElementById('micStatus');
+                if (micStatus) {
+                    micStatus.textContent = '🔴 Mikrofon stream hatası';
+                    micStatus.style.color = '#dc2626';
+                }
+            });
+
+            // Yükleme durumları
+            audioElement.addEventListener('loadstart', function() {
+                console.log('🔄 Audio yükleniyor...');
+                const micStatus = document.getElementById('micStatus');
+                if (micStatus) {
+                    micStatus.textContent = '🔵 Mikrofon bağlanıyor...';
+                    micStatus.style.color = '#3b82f6';
+                }
+            });
+
+            audioElement.addEventListener('loadeddata', function() {
+                console.log('✅ Audio data yüklendi');
+            });
+
+            audioElement.addEventListener('canplay', function() {
+                console.log('✅ Audio çalmaya hazır');
+                console.log('ℹ️  "Aktifleştir" butonuna tıklayarak başlatabilirsiniz');
+            }, { once: true });
+
+            audioElement.addEventListener('play', function() {
+                console.log('▶️ Audio çalmaya başladı');
+            });
+
+            audioElement.addEventListener('playing', function() {
+                console.log('🎵 Audio şu an çalıyor');
+                // Status'u güncelle
+                const micStatus = document.getElementById('micStatus');
+                if (micStatus) {
+                    micStatus.textContent = '🟢 Mikrofon aktif - Canlı dinleniyor';
+                    micStatus.style.color = '#22c55e';
+                }
+            });
+
+            audioElement.addEventListener('waiting', function() {
+                console.log('⏳ Audio bekliyor (buffering)...');
+                const micStatus = document.getElementById('micStatus');
+                if (micStatus) {
+                    micStatus.textContent = '🟡 Mikrofon buffering...';
+                    micStatus.style.color = '#f59e0b';
+                }
+            });
+
+            audioElement.addEventListener('stalled', function() {
+                console.log('⚠️ Audio stream durdu (stalled)');
+                const micStatus = document.getElementById('micStatus');
+                if (micStatus) {
+                    micStatus.textContent = '🟠 Mikrofon stream yavaş';
+                    micStatus.style.color = '#f59e0b';
+                }
+            });
+
+            // Audio element yüklenene kadar bekle
+            audioElement.addEventListener('loadedmetadata', function() {
+                try {
+                    console.log('📊 Audio metadata yüklendi');
+
+                    // AudioContext oluştur
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    console.log('🎚️ AudioContext durumu:', audioContext.state);
+
+                    // Analyser düğümü oluştur
+                    analyser = audioContext.createAnalyser();
+                    analyser.fftSize = 2048; // Daha büyük FFT size (256 -> 2048)
+                    analyser.smoothingTimeConstant = 0.9; // Daha fazla yumuşatma (0.8 -> 0.9)
+
+                    // Audio source oluştur
+                    const source = audioContext.createMediaElementSource(audioElement);
+
+                    // Bağlantıları kur: source -> analyser -> destination
+                    source.connect(analyser);
+                    analyser.connect(audioContext.destination);
+
+                    console.log('🎤 Audio level monitor başlatıldı');
+                    console.log('🎚️ Analyser FFT size:', analyser.fftSize);
+                    console.log('🎚️ Analyser frequency bin count:', analyser.frequencyBinCount);
+
+                    // Ses seviyesi güncellemeyi başlat
+                    updateAudioLevel();
+                } catch (error) {
+                    console.error('❌ Audio level monitor hatası:', error);
+                }
+            }, { once: true });
+
+            // Audio elementi çalmaya başladığında AudioContext'i resume et
+            audioElement.addEventListener('play', function() {
+                if (audioContext) {
+                    console.log('🔓 AudioContext durumu:', audioContext.state);
+                    if (audioContext.state === 'suspended') {
+                        audioContext.resume().then(() => {
+                            console.log('✅ AudioContext resume edildi:', audioContext.state);
+                        });
+                    } else {
+                        console.log('✅ AudioContext zaten aktif:', audioContext.state);
+                    }
+                }
+            });
+
+            // NOT: Buton tıklaması ile aktifleştirilecek (activateAudioMonitor fonksiyonu)
+        }
+
+        function updateAudioLevel() {
+            if (!analyser) {
+                return;
+            }
+
+            // AudioContext durumunu kontrol et
+            if (audioContext && audioContext.state === 'suspended') {
+                console.log('⚠️ AudioContext suspended, resume ediliyor...');
+                audioContext.resume();
+            }
+
+            // Time domain data al (waveform)
+            const bufferLength = analyser.fftSize;
+            const dataArray = new Uint8Array(bufferLength);
+            analyser.getByteTimeDomainData(dataArray);
+
+            // RMS (Root Mean Square) hesapla
+            let sum = 0;
+            for (let i = 0; i < bufferLength; i++) {
+                const normalized = (dataArray[i] - 128) / 128; // -1 ile 1 arasına normalize et
+                sum += normalized * normalized;
+            }
+            const rms = Math.sqrt(sum / bufferLength);
+
+            // Yüzdeye çevir (0-100) - Daha az hassas
+            let percentage = rms * 100 * 1.5; // x1.5 çarpan
+
+            // Gürültü filtreleme - 5'in altındaki değerleri 0 yap
+            if (percentage < 5) {
+                percentage = 0;
+            }
+
+            // 100'ü aşmasın
+            percentage = Math.min(100, Math.round(percentage));
+
+            // Her 50 frame'de bir debug
+            if (Math.random() < 0.02) { // ~%2 şans
+                console.log('🎚️ Audio level:', percentage + '%, RMS:', rms.toFixed(3), 'Context state:', audioContext.state);
+            }
+
+            // Progress bar ve label'ı güncelle
+            const levelBar = document.getElementById('audioLevelBar');
+            const levelLabel = document.getElementById('audioLevelLabel');
+
+            if (levelBar && levelLabel) {
+                levelBar.style.width = percentage + '%';
+                levelLabel.textContent = percentage + '%';
+
+                // Renk değiştir (seviyeye göre)
+                if (percentage > 60) {
+                    levelBar.style.background = 'linear-gradient(90deg, #f59e0b, #dc2626)'; // Turuncu-kırmızı
+                } else if (percentage > 30) {
+                    levelBar.style.background = 'linear-gradient(90deg, #10b981, #f59e0b)'; // Yeşil-turuncu
+                } else {
+                    levelBar.style.background = 'linear-gradient(90deg, #4ade80, #22c55e)'; // Yeşil
+                }
+            }
+
+            // Animasyonu devam ettir
+            animationId = requestAnimationFrame(updateAudioLevel);
+        }
+
+        // WiFi ağlarını yenile ve listele
+        function refreshWifiNetworks() {
+            const listDiv = document.getElementById('wifiNetworksList');
+            listDiv.innerHTML = '<div style="text-align: center; color: #667eea; padding: 20px;"><div>🔄 Yükleniyor...</div></div>';
+
+            fetch('/api/wifi/networks')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        displayWifiNetworks(data.networks);
+                    } else {
+                        listDiv.innerHTML = '<div style="text-align: center; color: #f44336; padding: 20px;">❌ Hata: ' + data.message + '</div>';
+                    }
+                })
+                .catch(error => {
+                    console.error('WiFi ağları yüklenirken hata:', error);
+                    listDiv.innerHTML = '<div style="text-align: center; color: #f44336; padding: 20px;">❌ Ağlar yüklenemedi</div>';
+                });
+        }
+
+        // WiFi ağlarını görüntüle
+        function displayWifiNetworks(networks) {
+            const listDiv = document.getElementById('wifiNetworksList');
+            const statusDiv = document.getElementById('wifiStatusDiv');
+
+            if (networks.length === 0) {
+                listDiv.innerHTML = '<div style="text-align: center; color: #999; padding: 20px;">Kayıtlı ağ bulunamadı</div>';
+                statusDiv.style.display = 'none';
+                return;
+            }
+
+            // Aktif ağı bul ve göster
+            const activeNetwork = networks.find(n => n.active);
+            if (activeNetwork) {
+                statusDiv.style.display = 'block';
+                document.getElementById('activeNetwork').textContent = activeNetwork.name;
+                document.getElementById('signalStrength').textContent = getSignalIcon(activeNetwork.signal) + ' ' + activeNetwork.signal + '%';
+            } else {
+                statusDiv.style.display = 'none';
+            }
+
+            // Ağları listele
+            let html = '';
+            networks.forEach(network => {
+                const isActive = network.active;
+                const bgColor = isActive ? '#e8f5e9' : '#f5f5f5';
+                const borderColor = isActive ? '#4caf50' : '#ddd';
+                const textColor = isActive ? '#2e7d32' : '#333';
+
+                html += `
+                    <div style="padding: 12px; margin-bottom: 8px; background: ${bgColor}; border: 2px solid ${borderColor}; border-radius: 8px; display: flex; justify-content: space-between; align-items: center;">
+                        <div style="flex: 1;">
+                            <div style="font-weight: bold; color: ${textColor}; margin-bottom: 3px;">
+                                ${isActive ? '🟢' : '⚪'} ${network.name}
+                            </div>
+                            ${network.signal > 0 ? `<div style="font-size: 0.9em; color: #666;">${getSignalIcon(network.signal)} ${network.signal}%</div>` : ''}
+                        </div>
+                        <div>
+                            ${isActive ?
+                                '<span style="color: #4caf50; font-weight: bold; padding: 8px 15px; background: white; border-radius: 5px; font-size: 0.85em;">✓ Bağlı</span>' :
+                                `<button onclick="connectToWifi('${network.name}')" style="padding: 8px 15px; background: linear-gradient(135deg, #667eea, #764ba2); color: white; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; font-size: 0.85em;">Bağlan</button>`
+                            }
+                        </div>
+                    </div>
+                `;
+            });
+
+            listDiv.innerHTML = html;
+        }
+
+        // Sinyal gücü ikonu
+        function getSignalIcon(signal) {
+            if (signal >= 75) return '📶';
+            if (signal >= 50) return '📶';
+            if (signal >= 25) return '📶';
+            return '📶';
+        }
+
+        // WiFi ağına bağlan
+        function connectToWifi(networkName) {
+            if (!confirm(`${networkName} ağına bağlanmak istediğinize emin misiniz?`)) {
+                return;
+            }
+
+            // Buton durumunu güncelle
+            const listDiv = document.getElementById('wifiNetworksList');
+            const originalHtml = listDiv.innerHTML;
+
+            fetch('/api/wifi/connect', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ network_name: networkName })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    alert('✅ Bağlantı başarılı: ' + data.message);
+                    // Ağları yenile
+                    setTimeout(() => refreshWifiNetworks(), 2000);
+                } else {
+                    alert('❌ Bağlantı hatası: ' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('WiFi bağlantı hatası:', error);
+                alert('❌ Bağlantı isteği gönderilemedi');
+            });
+        }
+
+        // Sayfa yüklendiğinde WiFi ağlarını otomatik yükle
+        window.addEventListener('load', function() {
+            refreshWifiNetworks();
+        });
+
+        // Sakinleştirici sesler için (Raspberry Pi üzerinde çalıyor)
+        let currentSound = null;
+
+        // Ses isimleri
+        const soundNames = {
+            'lullaby': '🎶 Dandini Dandini Dastana',
+            'lullaby2': '🎶 Beyaz Gürültü Ninni'
+        };
+
+        // Ses durumu güncellemesi
+        function updateSoundStatus(data) {
+            const statusDiv = document.getElementById('soundStatusDiv');
+            const soundNameEl = document.getElementById('currentSoundName');
+            const elapsedTimeEl = document.getElementById('elapsedTime');
+
+            if (data.is_playing && data.current_sound) {
+                // Ses çalıyor - göster
+                statusDiv.style.display = 'block';
+                soundNameEl.textContent = soundNames[data.current_sound] || data.current_sound;
+                elapsedTimeEl.textContent = '⏱️ ' + data.elapsed_time;
+            } else {
+                // Ses durmuş - gizle
+                statusDiv.style.display = 'none';
+            }
+        }
+
+        function playSoothingSound() {
+            const soundType = document.getElementById('soundSelect').value;
+            if (!soundType) {
+                alert('Lütfen bir ses seçin');
+                return;
+            }
+
+            // Raspberry Pi'ye ses çalma isteği gönder
+            fetch('/api/sound/play', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ sound_type: soundType })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    currentSound = soundType;
+                    console.log('🎵 Raspberry Pi\'de ses çalıyor:', soundType);
+                    alert('Ses Raspberry Pi hoparlöründen çalıyor!');
+                }
+            })
+            .catch(error => console.error('Hata:', error));
+        }
+
+        function stopSoothingSound() {
+            // Raspberry Pi'ye ses durdurma isteği gönder
+            fetch('/api/sound/stop', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    currentSound = null;
+                    console.log('⏹️ Ses durduruldu');
+                }
+            })
+            .catch(error => console.error('Hata:', error));
+        }
+
+        function updateVolume(value) {
+            // Raspberry Pi'ye ses seviyesi gönder
+            fetch('/api/sound/volume', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ volume: parseInt(value) })
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log('Ses seviyesi:', data.volume + '%');
+            })
+            .catch(error => console.error('Hata:', error));
+
+            document.getElementById('volumeLabel').textContent = value + '%';
+        }
+
         // Sayfa yüklendiğinde durum bilgilerini al
         window.addEventListener('load', function() {
             socket.emit('request_status');
+
+            // Hareket algılama durumunu al
+            fetch('/api/motion/status')
+                .then(response => response.json())
+                .then(data => {
+                    updateMotionButton(data.motion_enabled);
+                });
+
+            // Mikrofon ses seviyesi monitörünü başlat
+            initializeAudioLevelMonitor();
+
+            // Gece görüşü status'unu al
+            updateNightVisionStatus();
         });
         
         // Video stream hata durumu

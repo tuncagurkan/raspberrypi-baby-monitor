@@ -4,6 +4,7 @@ import threading
 import time
 from datetime import datetime
 import logging
+from ir_control import IRControl
 
 class CameraStream:
     def __init__(self, config):
@@ -13,15 +14,19 @@ class CameraStream:
         self.is_streaming = False
         self.fps_counter = 0
         self.fps = 0
-        
-        # İleride kullanılabilir (şimdilik comment)
-        # self.motion_detected = False
-        # self.bg_subtractor = cv2.createBackgroundSubtractorMOG2(
-        #     detectShadows=True,
-        #     varThreshold=16,
-        #     history=500
-        # )
-        
+
+        # Hareket algılama (basit frame difference)
+        self.motion_detected = False
+        self.motion_callback = None  # Hareket algılandığında çağrılacak callback
+        self.motion_frame_counter = 0  # Performans için frame atlama sayacı
+        self.motion_boxes = []  # Hareket algılanan bölgelerin koordinatları
+        self.prev_frame = None  # Önceki frame (frame difference için)
+
+        # IR-CUT ve IR LED kontrolü (Arducam)
+        self.ir_control = IRControl(config)
+        self.brightness_check_counter = 0  # Parlaklık kontrolü için frame sayacı
+        self.current_brightness = 50  # Mevcut parlaklık seviyesi
+
         self.initialize_camera()
         self.start_streaming()
     
@@ -72,64 +77,103 @@ class CameraStream:
     
     def _process_frame(self, frame):
         """Frame işleme"""
-        # İleride hareket tespiti eklenebilir
-        # self._detect_motion(frame)
-        
+        # Otomatik parlaklık kontrolü (her 30 frame'de bir - yaklaşık her saniye)
+        if self.config.NIGHT_VISION_AUTO:
+            self.brightness_check_counter += 1
+            if self.brightness_check_counter >= 30:
+                self.current_brightness = self._calculate_brightness(frame)
+                self.ir_control.auto_switch_mode(self.current_brightness)
+                self.brightness_check_counter = 0
+
+        # Hareket tespiti (performans için her N frame'de bir)
+        if self.config.MOTION_DETECTION_ENABLED:
+            self.motion_frame_counter += 1
+            if self.motion_frame_counter >= self.config.MOTION_CHECK_INTERVAL:
+                self._detect_motion(frame)
+                self.motion_frame_counter = 0
+
         # Frame üzerinde bilgileri göster
         frame_with_info = self._add_overlay_info(frame)
-        
+
         return frame_with_info
     
-    # Hareket tespiti (şimdilik comment)
-    # def _detect_motion(self, frame):
-    #     """Hareket tespiti algoritması"""
-    #     # Gri tonlama
-    #     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    #     
-    #     # Gaussian blur (gürültü azaltma)
-    #     gray = cv2.GaussianBlur(gray, (21, 21), 0)
-    #     
-    #     # Background subtraction
-    #     fg_mask = self.bg_subtractor.apply(gray)
-    #     
-    #     # Morfolojik operasyonlar (gürültü temizleme)
-    #     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
-    #     fg_mask = cv2.morphologyEx(fg_mask, cv2.MORPH_CLOSE, kernel)
-    #     fg_mask = cv2.morphologyEx(fg_mask, cv2.MORPH_OPEN, kernel)
-    #     
-    #     # Hareket alanını hesapla
-    #     motion_pixels = cv2.countNonZero(fg_mask)
-    #     total_pixels = frame.shape[0] * frame.shape[1]
-    #     motion_percentage = (motion_pixels / total_pixels) * 100
-    #     
-    #     # Hareket threshold'u
-    #     self.motion_detected = motion_percentage > self.config.MOTION_THRESHOLD
-    #     
-    #     if self.motion_detected:
-    #         print(f"🔍 Hareket tespit edildi! (%{motion_percentage:.2f})")
+    def _calculate_brightness(self, frame):
+        """
+        Frame'in ortalama parlaklığını hesapla (0-100 arası)
+        Karanlık ortamları tespit etmek için kullanılır
+        """
+        # Gri tonlamaya çevir
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
+        # Ortalama parlaklık (0-255 arası)
+        mean_brightness = np.mean(gray)
+
+        # 0-100 aralığına ölçekle
+        brightness_percentage = (mean_brightness / 255.0) * 100
+
+        return brightness_percentage
+
+    def _detect_motion(self, frame):
+        """Hareket tespiti - ULTRA BASIT (frame difference only)"""
+        # Çok küçük frame (performans)
+        small_frame = cv2.resize(frame, (160, 120))
+
+        # Gri tonlama
+        gray = cv2.cvtColor(small_frame, cv2.COLOR_BGR2GRAY)
+
+        # Basit blur
+        gray = cv2.GaussianBlur(gray, (5, 5), 0)
+
+        # İlk frame ise kaydet ve çık
+        if self.prev_frame is None:
+            self.prev_frame = gray
+            return
+
+        # Frame farkı (en basit yöntem)
+        frame_diff = cv2.absdiff(self.prev_frame, gray)
+
+        # Threshold
+        _, thresh = cv2.threshold(frame_diff, 25, 255, cv2.THRESH_BINARY)
+
+        # Hareket yüzdesi
+        motion_pixels = cv2.countNonZero(thresh)
+        total_pixels = thresh.shape[0] * thresh.shape[1]
+        motion_percentage = (motion_pixels / total_pixels) * 100
+
+        # Hareket tespit
+        was_detected = self.motion_detected
+        self.motion_detected = motion_percentage > self.config.MOTION_THRESHOLD
+
+        # Bounding box yok (çok yavaş - atla)
+        self.motion_boxes = []
+
+        # Önceki frame'i güncelle
+        self.prev_frame = gray
+
+        # Callback
+        if self.motion_detected and not was_detected and self.motion_callback:
+            self.motion_callback(motion_percentage)
     
     def _add_overlay_info(self, frame):
-        """Frame üzerine bilgi overlay'i ekle"""
-        overlay_frame = frame.copy()
-        
-        # Timestamp
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        cv2.putText(overlay_frame, timestamp, (10, 30), 
-                   cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
-        
-        # FPS bilgisi
-        cv2.putText(overlay_frame, f"FPS: {self.fps}", (10, 60),
-                   cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
-        
-        # İleride hareket durumu eklenebilir
-        # if self.motion_detected:
-        #     cv2.putText(overlay_frame, "HAREKET!", (10, 90),
-        #                cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
-        #     # Kırmızı çerçeve
-        #     cv2.rectangle(overlay_frame, (5, 5), 
-        #                  (frame.shape[1]-5, frame.shape[0]-5), (0, 0, 255), 3)
-        
-        return overlay_frame
+        """Frame üzerine bilgi overlay'i ekle (minimal - performans)"""
+        # Frame kopyalama bile CPU yer - direkt üzerine yaz
+
+        # FPS ve Gece/Gündüz modu
+        mode_icon = "🌙" if self.ir_control.is_night_mode else "☀️"
+        cv2.putText(frame, f"FPS:{self.fps} {mode_icon}", (5, 20),
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+
+        # Hareket durumu (sadece aktifse)
+        if self.config.MOTION_DETECTION_ENABLED and self.motion_detected:
+            # Basit "M" harfi (performans)
+            cv2.putText(frame, "M", (5, 40),
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
+
+            # Hareket bölgeleri (varsa)
+            for (x, y, w, h) in self.motion_boxes:
+                cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 1)
+
+        return frame
     
     def _fps_counter(self):
         """FPS hesaplayıcısı"""
@@ -142,36 +186,43 @@ class CameraStream:
         """Flask streaming için frame generator"""
         while self.is_streaming:
             if self.current_frame is not None:
-                # JPEG encode
+                # JPEG encode (düşük kalite - performans)
                 ret, buffer = cv2.imencode('.jpg', self.current_frame,
-                                         [cv2.IMWRITE_JPEG_QUALITY, 85])
+                                         [cv2.IMWRITE_JPEG_QUALITY, 60])  # 85 -> 60 (daha hızlı)
                 if ret:
                     frame_bytes = buffer.tobytes()
                     yield (b'--frame\r\n'
                            b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
-            time.sleep(1/30)  # 30 FPS max
+            time.sleep(0.01)  # Minimal delay
     
     def update_settings(self, settings):
-        print("🍼 Camera settings update requested")
         """Kamera ayarlarını güncelle"""
         if 'brightness' in settings and self.camera:
             self.camera.set(cv2.CAP_PROP_BRIGHTNESS, settings['brightness'])
         if 'contrast' in settings and self.camera:
             self.camera.set(cv2.CAP_PROP_CONTRAST, settings['contrast'])
-    
+
     def is_active(self):
-        print("🍼 Checking if camera is active")
         """Kamera aktif mi?"""
         return self.camera is not None and self.is_streaming
-    
+
     def get_fps(self):
-        print("🍼 Getting current FPS")
         """Mevcut FPS değerini al"""
         return self.fps
+
+    def set_motion_callback(self, callback):
+        """Hareket algılandığında çağrılacak callback fonksiyonunu ayarla"""
+        self.motion_callback = callback
+
+    def is_motion_detected(self):
+        """Hareket algılandı mı?"""
+        return self.motion_detected if self.config.MOTION_DETECTION_ENABLED else False
     
     def stop(self):
-        print("🍼 Stopping camera stream")
         """Streaming'i durdur"""
         self.is_streaming = False
         if self.camera:
             self.camera.release()
+
+        # GPIO temizle
+        self.ir_control.cleanup()
